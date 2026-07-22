@@ -1,0 +1,27 @@
+# Local models and user data
+models/
+projects/
+artifacts/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+
+# Generated Office and document files
+*.pptx
+*.pdf
+*.docx
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend and build outputs
+node_modules/
+dist/
+build/
