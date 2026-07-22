@@ -6,7 +6,7 @@
 
 **Architecture:** A React/FastAPI local product uses LangGraph for durable workflow execution and a progressively built Agent Harness for model/tool reliability. PowerPoint COM and local vision inference run in isolated workers; `ProjectState + DeckBible + SlideDSL` remain the source of truth.
 
-**Tech Stack:** Python 3.10.20, Conda `AI`, FastAPI, Pydantic, LangChain, LangGraph, SQLite, python-pptx, pywin32, React, TypeScript, PowerPoint, pytest, Playwright.
+**Tech Stack:** Python >=3.10,<3.13 with development environment Conda `AI` locked to Python 3.10.20, FastAPI, Pydantic, LangChain, LangGraph, SQLite, python-pptx, pywin32, React, TypeScript, PowerPoint, pytest, Playwright.
 
 ## Global Constraints
 
@@ -40,3 +40,4 @@
 
 Only M0 is planned at task-level now. At each gate, record measured constraints in an ADR, update this roadmap if necessary, and create the next phase plan. This prevents parser, search, VLM, packaging, and Harness choices from being fixed before evidence exists.
 
+M0 blocks M1 only on editable PPTX generation, PowerPoint render/owned-process cleanup, geometry checks, upload/SSRF baseline security, repeated DeepSeek structured output, and Markdown/PPTX parsing. Final parser, vision-model, search/image-provider, CPU fallback, and animation choices are exploratory and may continue after M1 starts.
