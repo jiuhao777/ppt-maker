@@ -342,9 +342,11 @@ git commit -m "feat: validate editable PPTX generation"
 
 **Files:**
 - Create: `src/pptmaker/powerpoint/protocol.py`
+- Create: `src/pptmaker/powerpoint/preflight.py`
 - Create: `src/pptmaker/powerpoint/worker.py`
 - Create: `src/pptmaker/powerpoint/client.py`
 - Test: `tests/powerpoint/test_protocol.py`
+- Test: `tests/powerpoint/test_preflight.py`
 - Test: `tests/powerpoint/test_worker_integration.py`
 
 **Interfaces:**
@@ -410,6 +412,45 @@ class RenderResponse(BaseModel):
 Run: `conda run -n AI python -m pytest tests/powerpoint/test_protocol.py -v`  
 Expected: PASS.
 
+- [ ] **Step 3a: Implement and test PowerPoint preflight**
+
+```python
+# src/pptmaker/powerpoint/preflight.py
+from pathlib import Path
+
+import psutil
+import win32con
+import win32file
+
+
+def preflight_issues(path: Path) -> list[str]:
+    issues = []
+    zone_path = Path(f"{path}:Zone.Identifier")
+    try:
+        zone = zone_path.read_text("utf-8", errors="ignore")
+        if "ZoneId=3" in zone or "ZoneId=4" in zone:
+            issues.append("protected_view_risk")
+    except OSError:
+        pass
+    try:
+        handle = win32file.CreateFile(
+            str(path), win32con.GENERIC_READ, 0, None, win32con.OPEN_EXISTING,
+            win32con.FILE_ATTRIBUTE_NORMAL, None,
+        )
+        handle.Close()
+    except OSError:
+        issues.append("file_locked")
+    existing = [
+        process.pid for process in psutil.process_iter(["name"])
+        if (process.info["name"] or "").lower() == "powerpnt.exe"
+    ]
+    if existing:
+        issues.append("existing_powerpoint_instance")
+    return issues
+```
+
+`tests/powerpoint/test_preflight.py` must cover a synthetic `Zone.Identifier` stream where supported, a file held open with exclusive sharing, and an injected process iterator containing `POWERPNT.EXE`. The formal M0 Office test starts only when no PowerPoint instance is already open. Existing-instance behavior remains an exploratory compatibility test and must never terminate or attach to that instance. Record Office version, bitness, and macro-security mode in `powerpoint-worker.json`.
+
 - [ ] **Step 4: Implement STA worker entry point**
 
 ```python
@@ -426,6 +467,7 @@ import win32com.client
 import win32process
 
 from pptmaker.powerpoint.protocol import RenderRequest, RenderResponse
+from pptmaker.powerpoint.preflight import preflight_issues
 
 
 def _heartbeat(path: Path, pid: int, run_id: str, stop: threading.Event) -> None:
@@ -444,6 +486,11 @@ def render(request: RenderRequest) -> RenderResponse:
     heartbeat_stop = threading.Event()
     heartbeat_thread = None
     try:
+        issues = preflight_issues(Path(request.input_path))
+        if issues:
+            raise RuntimeError("PowerPoint preflight failed: " + ",".join(issues))
+        if Path(request.cancel_path).exists():
+            raise RuntimeError("task cancelled before PowerPoint launch")
         output = Path(request.output_dir) / request.run_id
         output.mkdir(parents=True, exist_ok=True)
         app = win32com.client.DispatchEx("PowerPoint.Application")
@@ -1718,16 +1765,16 @@ def test_report_is_computed_from_records():
     assert summary["peak_vram_bytes"] == 1024
 ```
 
-The three PIL cases only validate this harness. Model selection requires at least 50 PowerPoint-rendered pages partitioned into development, validation, and frozen test splits; each defect class must include normal negative examples. The frozen test split is not used for prompt or threshold tuning.
+The three PIL cases only validate this harness. Use a staged dataset: 5 PowerPoint-rendered pages for fast load/prompt screening; 20 pages with known defects and normal negatives for admission; expand to 50 pages split into development, validation, and frozen test sets only when candidates are close or thresholds need calibration. The frozen test split is not used for prompt or threshold tuning. Record dataset-generation time separately from inference time.
 
-Run each model with batch size 1 and identical prompt/schema:
+Run models strictly sequentially with `max_concurrent_models=1`, batch size 1, and identical prompt/schema. After each model, delete the adapter/model, call `gc.collect()` and `torch.cuda.empty_cache()`, then record remaining allocated/reserved memory before loading the next candidate:
 
 - existing `models/QwenQwen3-VL-4B-Instruct` in 4-bit;
 - Qwen3-VL-2B-Instruct;
 - MiniCPM-V-4.6;
 - InternVL3.5-2B.
 
-For each model, record JSON validity, precision, recall, false-positive rate, P50/P95 per-slide latency, and CUDA peak memory in `docs/evaluations/m0-vision-models.md`. This machine has 8188 MiB physical VRAM; the default GPU experiment budget is 6500 MiB to preserve runtime headroom. If a model exceeds it, record BLOCKED with the exception and attempted quantization. Measure CPU offload as a separate row. Vision-model selection is exploratory and does not block M1; visual auto-repair remains M7 work.
+For each model, record 4-bit weight format, load time, JSON validity, precision, recall, false-positive rate, P50/P95 per-slide latency, total sequential evaluation time, and CUDA peak memory in `docs/evaluations/m0-vision-models.md`. This machine has 8188 MiB physical VRAM; the default budget is 6500 MiB, which is stricter than 85% of physical VRAM. If loading crosses the budget, unload immediately, record BLOCKED, and do not start page evaluation. Measure CPU offload as a separate row. Admission requires recall >=70%, false-positive rate <=20%, and JSON validity >=95%. A model that misses any threshold remains a research preview and is disabled by default. Vision-model selection is exploratory and does not block M1; visual auto-repair remains M7 work.
 
 - [ ] **Step 7: Commit harness and report**
 

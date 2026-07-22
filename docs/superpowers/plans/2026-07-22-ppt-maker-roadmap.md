@@ -30,7 +30,7 @@
 | M3 | Complete project-report workflow | Requirement interview, outline approval, DeckBible, 6–10 slides, preview, pause/resume, and human acceptance work end to end |
 | M4 | Secure document ingestion and retrieval | Word/PDF/PPT/image inputs preserve source locations and pass security/challenge suites |
 | M5 | Online research and licensed assets | Keyed search, manual URLs, Fact Store, safe/wide image modes, and source manifest pass provenance tests |
-| M6 | Design system, samples, and templates | Sample approval, design tokens, layout selection, theme inheritance, components, and simple animation pass render regression |
+| M6 | Design system, samples, and simple templates | Sample approval, design tokens, components, existing master/layout placeholder filling, and simple animation pass render regression; complex commercial-template inference is a later independent package |
 | M7 | Evaluation, reflection, and repair | Rule/content/vision evaluators and bounded repair reduce target defects without new severe defects |
 | M8 | Natural-language editing and versions | EditPlan, locks, incremental rebuild, undo, rollback, and version comparison preserve unaffected pages |
 | M9 | Additional task modes | Each mode has distinct requirements, narrative policy, prompts, and benchmark cases |
