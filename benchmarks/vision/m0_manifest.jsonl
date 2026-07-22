@@ -1,0 +1,5 @@
+{"case_id":"normal_001","split":"development","image":"artifacts/m0/vision/normal_001.png","expected":[],"license":"synthetic","sha256":"64bfba876a635d8d39fd74dcc8026495d3c11ad16cfe7b9dce1a4fe64b4fe688"}
+{"case_id":"overflow_001","split":"development","image":"artifacts/m0/vision/overflow_001.png","expected":["overflow"],"license":"synthetic","sha256":"f551cb497d356955296b88d934981036a13af77f4e8dab49072d5cae8b876dd9"}
+{"case_id":"crowded_001","split":"validation","image":"artifacts/m0/vision/crowded_001.png","expected":["crowded"],"license":"synthetic","sha256":"410924e5ce2c1539a791643731b8f778696901795fba996566a4bbb911986c40"}
+{"case_id":"weak_hierarchy_001","split":"validation","image":"artifacts/m0/vision/weak_hierarchy_001.png","expected":["weak_hierarchy"],"license":"synthetic","sha256":"83e9449b05f1f398f4d38f53cd4c9d62fe04bd49ac6596c2d7b177f604c8be8e"}
+{"case_id":"misalignment_001","split":"validation","image":"artifacts/m0/vision/misalignment_001.png","expected":["misalignment"],"license":"synthetic","sha256":"9c6700af0a4aef951c2e02ed510faae898ee21b3432e1e76c536eb7952256688"}
