@@ -40,7 +40,7 @@ Exploratory evidence: final parser selection beyond Markdown/PPTX, final local v
 - Consumes: Conda environment `AI` with Python 3.10.20.
 - Produces: installable `pptmaker` package and `m0` pytest marker.
 
-- [ ] **Step 1: Write the environment test**
+- [x] **Step 1: Write the environment test**
 
 ```python
 # tests/test_environment.py
@@ -53,7 +53,7 @@ def test_supported_runtime():
     assert platform.system() == "Windows"
 ```
 
-- [ ] **Step 2: Add pytest marker registration**
+- [x] **Step 2: Add pytest marker registration**
 
 ```python
 # tests/conftest.py
@@ -63,7 +63,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "online: requires an explicitly configured API key")
 ```
 
-- [ ] **Step 3: Add packaging and test configuration**
+- [x] **Step 3: Add packaging and test configuration**
 
 ```toml
 # pyproject.toml
@@ -96,7 +96,7 @@ testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 ```
 
-- [ ] **Step 4: Protect local and generated data**
+- [x] **Step 4: Protect local and generated data**
 
 ```gitignore
 # .gitignore
@@ -120,7 +120,7 @@ dist/
 build/
 ```
 
-- [ ] **Step 5: Install the project and run the test**
+- [x] **Step 5: Install the project and run the test**
 
 Run:
 
@@ -132,7 +132,7 @@ conda run -n AI python -m pip freeze | Set-Content -Encoding UTF8 requirements/a
 
 Expected: one passing test and no unknown-marker warning.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add .gitignore pyproject.toml requirements/ai-py310-win.lock.txt src/pptmaker/__init__.py tests/conftest.py tests/test_environment.py
@@ -150,7 +150,7 @@ git commit -m "chore: establish M0 test foundation"
 - Consumes: a repository root and probe name.
 - Produces: `ProbeResult`, `write_probe_result(result, root) -> Path`, and `execute_probe(name, runner, root) -> Path`.
 
-- [ ] **Step 1: Write failing serialization tests**
+- [x] **Step 1: Write failing serialization tests**
 
 ```python
 # tests/m0/test_artifacts.py
@@ -168,12 +168,12 @@ def test_probe_result_is_written_under_artifacts(tmp_path: Path):
     assert json.loads(path.read_text("utf-8"))["metrics"]["slides"] == 2
 ```
 
-- [ ] **Step 2: Verify the test fails**
+- [x] **Step 2: Verify the test fails**
 
 Run: `conda run -n AI python -m pytest tests/m0/test_artifacts.py -v`  
 Expected: FAIL because `pptmaker.m0` does not exist.
 
-- [ ] **Step 3: Implement contracts and atomic JSON writing**
+- [x] **Step 3: Implement contracts and atomic JSON writing**
 
 ```python
 # src/pptmaker/m0/contracts.py
@@ -229,12 +229,12 @@ def execute_probe(name: str, runner, root: Path) -> Path:
     return write_probe_result(result, root)
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `conda run -n AI python -m pytest tests/m0/test_artifacts.py -v`  
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/pptmaker/m0 tests/m0/test_artifacts.py
@@ -251,7 +251,7 @@ git commit -m "feat: add M0 probe result contracts"
 - Consumes: `build_baseline_deck(output: Path) -> ProbeResult`.
 - Produces: a two-slide editable PPTX with text, shape, table, image, and native chart.
 
-- [ ] **Step 1: Write the package-level test**
+- [x] **Step 1: Write the package-level test**
 
 ```python
 # tests/m0/test_pptx_probe.py
@@ -272,12 +272,12 @@ def test_baseline_deck_contains_two_slides_and_chart(tmp_path: Path):
     assert any(name.startswith("ppt/charts/chart") for name in names)
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `conda run -n AI python -m pytest tests/m0/test_pptx_probe.py -v`  
 Expected: FAIL because `build_baseline_deck` is missing.
 
-- [ ] **Step 3: Implement the editable deck**
+- [x] **Step 3: Implement the editable deck**
 
 ```python
 # src/pptmaker/m0/pptx_probe.py
@@ -320,7 +320,7 @@ def build_baseline_deck(output: Path) -> ProbeResult:
     return ProbeResult(name="pptx-baseline", status=ProbeStatus.PASS, metrics={"slides": 2})
 ```
 
-- [ ] **Step 4: Run test and create evidence**
+- [x] **Step 4: Run test and create evidence**
 
 Run:
 
@@ -331,7 +331,7 @@ conda run -n AI python -c "from pathlib import Path; from pptmaker.m0.artifacts 
 
 Expected: PASS, `artifacts/m0/baseline.pptx` exists, and `artifacts/m0/pptx-baseline.json` has status `pass`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/pptmaker/m0/pptx_probe.py tests/m0/test_pptx_probe.py
@@ -353,7 +353,7 @@ git commit -m "feat: validate editable PPTX generation"
 - Consumes: `RenderRequest(run_id, idempotency_key, input_path, output_dir, control_path, cancel_path, timeout_seconds)`.
 - Produces: `RenderResponse(status, owned_pid, slide_images, elapsed_seconds, error)`.
 
-- [ ] **Step 1: Write protocol validation tests**
+- [x] **Step 1: Write protocol validation tests**
 
 ```python
 # tests/powerpoint/test_protocol.py
@@ -371,7 +371,7 @@ def test_render_request_rejects_non_absolute_input():
         )
 ```
 
-- [ ] **Step 2: Implement protocol**
+- [x] **Step 2: Implement protocol**
 
 ```python
 # src/pptmaker/powerpoint/protocol.py
@@ -407,12 +407,12 @@ class RenderResponse(BaseModel):
     error: str | None = None
 ```
 
-- [ ] **Step 3: Run protocol test**
+- [x] **Step 3: Run protocol test**
 
 Run: `conda run -n AI python -m pytest tests/powerpoint/test_protocol.py -v`  
 Expected: PASS.
 
-- [ ] **Step 3a: Implement and test PowerPoint preflight**
+- [x] **Step 3a: Implement and test PowerPoint preflight**
 
 ```python
 # src/pptmaker/powerpoint/preflight.py
@@ -451,7 +451,7 @@ def preflight_issues(path: Path) -> list[str]:
 
 `tests/powerpoint/test_preflight.py` must cover a synthetic `Zone.Identifier` stream where supported, a file held open with exclusive sharing, and an injected process iterator containing `POWERPNT.EXE`. The formal M0 Office test starts only when no PowerPoint instance is already open. Existing-instance behavior remains an exploratory compatibility test and must never terminate or attach to that instance. Record Office version, bitness, and macro-security mode in `powerpoint-worker.json`.
 
-- [ ] **Step 4: Implement STA worker entry point**
+- [x] **Step 4: Implement STA worker entry point**
 
 ```python
 # src/pptmaker/powerpoint/worker.py
@@ -546,7 +546,7 @@ if __name__ == "__main__":
     sys.stdout.write(render(request).model_dump_json())
 ```
 
-- [ ] **Step 5: Implement hard-timeout client**
+- [x] **Step 5: Implement hard-timeout client**
 
 ```python
 # src/pptmaker/powerpoint/client.py
@@ -593,7 +593,7 @@ def render_with_timeout(request: RenderRequest) -> RenderResponse:
     return RenderResponse.model_validate_json(stdout)
 ```
 
-- [ ] **Step 6: Add real Office integration test**
+- [x] **Step 6: Add real Office integration test**
 
 ```python
 # tests/powerpoint/test_worker_integration.py
@@ -658,12 +658,12 @@ def test_timeout_does_not_terminate_preexisting_powerpoint(tmp_path: Path):
 
 Add a cancellation integration test that creates `cancel_path` before launch and asserts status `failed`, error contains `cancelled`, and the recorded owned PID no longer exists. Add a heartbeat test with `test_hold_seconds=5` and `timeout_seconds=15`: start the client in a background thread, read `control_path` twice at least 1.5 seconds apart, and assert the second `heartbeat` value is greater. These tests prove the control channel rather than merely checking fields.
 
-- [ ] **Step 7: Run protocol and Office tests**
+- [x] **Step 7: Run protocol and Office tests**
 
 Run: `conda run -n AI python -m pytest tests/powerpoint -v -m "office or not office"`  
 Expected: all tests PASS and two PNG files are exported.
 
-- [ ] **Step 8: Record the M0 limitation**
+- [x] **Step 8: Record the M0 limitation**
 
 Create the machine-readable probe:
 
@@ -709,7 +709,7 @@ def run_powerpoint_probe(root: Path) -> ProbeResult:
 
 Execute through `execute_probe` so `artifacts/m0/powerpoint-worker.json` is always written. M0 must prove STA isolation, task-specific output directories, precise PID ownership, heartbeat updates, pre-start cancellation, hard timeout, numeric slide ordering, no orphaned owned process, and no termination of pre-existing PowerPoint instances. Protected-view handling and atomic replacement of final exported `.pptx` remain later production tasks.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```powershell
 git add src/pptmaker/powerpoint src/pptmaker/m0/powerpoint_probe.py tests/powerpoint
@@ -727,7 +727,7 @@ git commit -m "feat: validate isolated PowerPoint rendering"
 - Consumes: `Box(x, y, width, height)` in English Metric Units.
 - Produces: `out_of_bounds(box, canvas) -> bool` and `overlap_ratio(left, right) -> float`.
 
-- [ ] **Step 1: Write boundary and overlap tests**
+- [x] **Step 1: Write boundary and overlap tests**
 
 ```python
 # tests/evaluation/test_geometry.py
@@ -746,7 +746,7 @@ def test_touching_edges_do_not_overlap():
     assert overlap_ratio(Box(0, 0, 10, 10), Box(10, 0, 10, 10)) == 0.0
 ```
 
-- [ ] **Step 2: Implement pure geometry functions**
+- [x] **Step 2: Implement pure geometry functions**
 
 ```python
 # src/pptmaker/evaluation/geometry.py
@@ -777,7 +777,7 @@ def overlap_ratio(left: Box, right: Box) -> float:
     return 0.0 if denominator == 0 else intersection / denominator
 ```
 
-- [ ] **Step 3: Run tests and commit**
+- [x] **Step 3: Run tests and commit**
 
 Create the evidence runner:
 
@@ -824,7 +824,7 @@ git commit -m "feat: add deterministic geometry probes"
 - Consumes: uploaded path or resolved IP string.
 - Produces: `inspect_zip(path, limits) -> ArchiveInspection` and `is_forbidden_ip(value) -> bool`.
 
-- [ ] **Step 1: Write ZIP traversal and expansion tests**
+- [x] **Step 1: Write ZIP traversal and expansion tests**
 
 ```python
 # tests/security/test_uploads.py
@@ -852,7 +852,7 @@ def test_rejects_excessive_uncompressed_size(tmp_path: Path):
         inspect_zip(archive, ArchiveLimits(max_uncompressed_bytes=1024))
 ```
 
-- [ ] **Step 2: Implement non-extracting archive inspection**
+- [x] **Step 2: Implement non-extracting archive inspection**
 
 ```python
 # src/pptmaker/security/uploads.py
@@ -934,7 +934,7 @@ def inspect_office_package(path: Path, limits: ArchiveLimits) -> ArchiveInspecti
 
 Add tests that build ZIP members for `C:/escape`, `\\server\share`, a Unix symlink via `external_attr`, an encrypted flag, nested ZIP, one oversized member, `ppt/vbaProject.bin`, `ppt/embeddings/oleObject1.bin`, and a DOCX package renamed `.pptx`. Each must raise the exact corresponding `UnsafeArchive` message. Add positive synthetic DOCX and PPTX package tests so rejection rules do not block normal inputs.
 
-- [ ] **Step 3: Write forbidden-address tests**
+- [x] **Step 3: Write forbidden-address tests**
 
 ```python
 # tests/security/test_network.py
@@ -956,7 +956,7 @@ def test_blocks_ipv4_mapped_ipv6():
     assert is_forbidden_ip("::ffff:127.0.0.1")
 ```
 
-- [ ] **Step 4: Implement IP classification**
+- [x] **Step 4: Implement IP classification**
 
 ```python
 # src/pptmaker/security/network.py
@@ -970,7 +970,7 @@ def is_forbidden_ip(value: str) -> bool:
     return not address.is_global
 ```
 
-- [ ] **Step 5: Test complete URL and redirect validation with injected DNS**
+- [x] **Step 5: Test complete URL and redirect validation with injected DNS**
 
 ```python
 # tests/security/test_fetcher.py
@@ -1067,7 +1067,7 @@ def safe_fetch(url: str, resolver, policy: SafeFetchPolicy, transport=None) -> b
 
 Add `tests/security/test_fetcher.py` cases using `httpx.MockTransport`: a redirect to `http://169.254.169.254/latest/meta-data/` must raise `UnsafeUrl`; a body larger than `max_response_bytes` must raise; credentials, abnormal ports, and redirect loops must raise; a resolver returning public IPs on the first call and private IPs on the second must raise as unstable DNS. These tests validate policy behavior; M5 must replace the transport with connection pinning so validation and socket connection cannot race.
 
-- [ ] **Step 6: Produce machine-readable security evidence**
+- [x] **Step 6: Produce machine-readable security evidence**
 
 ```python
 # src/pptmaker/m0/security_probe.py
@@ -1105,7 +1105,7 @@ def run_security_probe(root: Path) -> ProbeResult:
 
 Run it through `execute_probe('upload-security', ...)` and verify `artifacts/m0/upload-security.json` exists.
 
-- [ ] **Step 7: Run tests and commit**
+- [x] **Step 7: Run tests and commit**
 
 Run: `conda run -n AI python -m pytest tests/security -v`  
 Expected: all tests PASS.
@@ -1126,7 +1126,7 @@ git commit -m "feat: validate upload and SSRF defenses"
 - Consumes: `DEEPSEEK_API_KEY`, optional `DEEPSEEK_BASE_URL`, and model name.
 - Produces: validated `OutlineProbe` and latency/usage metrics; never stores the key.
 
-- [ ] **Step 1: Define safe environment documentation**
+- [x] **Step 1: Define safe environment documentation**
 
 ```dotenv
 # .env.example
@@ -1135,7 +1135,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 ```
 
-- [ ] **Step 2: Write parser tests**
+- [x] **Step 2: Write parser tests**
 
 ```python
 # tests/m0/test_deepseek_probe.py
@@ -1155,7 +1155,7 @@ def test_rejects_too_short_outline():
         parse_outline('{"title":"项目汇报","slides":["背景"]}')
 ```
 
-- [ ] **Step 3: Implement schema, parser, and explicit online probe**
+- [x] **Step 3: Implement schema, parser, and explicit online probe**
 
 ```python
 # src/pptmaker/m0/deepseek_probe.py
@@ -1251,12 +1251,12 @@ Add these imports to the same module:
 from pptmaker.m0.contracts import ProbeResult, ProbeStatus
 ```
 
-- [ ] **Step 4: Run offline tests**
+- [x] **Step 4: Run offline tests**
 
 Run: `conda run -n AI python -m pytest tests/m0/test_deepseek_probe.py -v`  
 Expected: two passing tests without requiring a key.
 
-- [ ] **Step 5: Run online probe without exposing the key**
+- [x] **Step 5: Run online probe without exposing the key**
 
 Set `DEEPSEEK_API_KEY` in the current terminal or Windows Credential Manager, then run:
 
@@ -1266,7 +1266,7 @@ conda run -n AI python -c "from pathlib import Path; from pptmaker.m0.artifacts 
 
 Expected: 20 requests, first-pass schema rate >=95%, one-repair pass rate 100%, and `artifacts/m0/deepseek-structured-output.json` with latency, token, empty-response, timeout, and rate-limit metrics. No run may use more than one repair call.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add .env.example src/pptmaker/m0/deepseek_probe.py tests/m0/test_deepseek_probe.py
@@ -1286,7 +1286,7 @@ git commit -m "feat: probe DeepSeek structured output"
 - Consumes: synthetic Markdown, DOCX, PDF, PPTX, and PNG fixtures generated by tests.
 - Produces: `ParsedDocument(kind, text, tables, images, locations)` and a measured matrix.
 
-- [ ] **Step 1: Define the normalized probe result and Markdown parser test**
+- [x] **Step 1: Define the normalized probe result and Markdown parser test**
 
 ```python
 # tests/m0/test_parser_probe.py
@@ -1300,7 +1300,7 @@ def test_markdown_preserves_heading_and_table():
     assert parsed.tables == [["指标", "值"], ["质量", "90"]]
 ```
 
-- [ ] **Step 2: Implement the normalized result and deterministic Markdown parser**
+- [x] **Step 2: Implement the normalized result and deterministic Markdown parser**
 
 ```python
 # src/pptmaker/m0/parser_probe.py
@@ -1325,12 +1325,12 @@ def parse_markdown(content: str) -> ParsedDocument:
     return ParsedDocument(kind="markdown", text=text, tables=table_rows)
 ```
 
-- [ ] **Step 3: Run the test**
+- [x] **Step 3: Run the test**
 
 Run: `conda run -n AI python -m pytest tests/m0/test_parser_probe.py -v`  
 Expected: PASS.
 
-- [ ] **Step 4: Add parsing dependencies to `pyproject.toml`**
+- [x] **Step 4: Add parsing dependencies to `pyproject.toml`**
 
 Append these exact entries to `[project].dependencies`:
 
@@ -1341,7 +1341,7 @@ Append these exact entries to `[project].dependencies`:
   "markitdown==0.1.5",
 ```
 
-- [ ] **Step 5: Generate deterministic DOCX, PDF, PPTX, and PNG fixtures**
+- [x] **Step 5: Generate deterministic DOCX, PDF, PPTX, and PNG fixtures**
 
 ```python
 # tests/fixtures/documents/generate.py
@@ -1388,7 +1388,7 @@ if __name__ == "__main__":
     generate(Path(__file__).parent)
 ```
 
-- [ ] **Step 6: Add a MarkItDown comparison path**
+- [x] **Step 6: Add a MarkItDown comparison path**
 
 Append to `src/pptmaker/m0/parser_probe.py`:
 
@@ -1435,7 +1435,7 @@ def test_markitdown_extracts_or_explicitly_reports_sentinel(tmp_path: Path, name
     assert SENTINEL in parsed.text
 ```
 
-- [ ] **Step 7: Install, generate fixtures, and run the matrix tests**
+- [x] **Step 7: Install, generate fixtures, and run the matrix tests**
 
 Run:
 
@@ -1467,7 +1467,7 @@ def run_parser_core_probe(root: Path) -> ProbeResult:
 
 Add imports for `ProbeResult` and `ProbeStatus`, execute through `execute_probe`, and verify `artifacts/m0/parser-core.json` exists. Markdown and PPTX are mandatory. DOCX, PDF, scanned/double-column PDF, notes, grouped shapes, charts, encrypted/corrupt/oversized inputs, code blocks, and complex tables are exploratory matrix rows. `xfail` and empty `locations` never count as PASS; every supported row must assert page, paragraph, slide, or object location.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```powershell
 git add pyproject.toml src/pptmaker/m0/parser_probe.py tests/m0/test_parser_probe.py tests/fixtures/documents docs/evaluations/m0-parser-matrix.md
@@ -1493,7 +1493,7 @@ git commit -m "test: measure document parser capabilities"
 - Consumes: frozen expected issue labels and model JSON predictions.
 - Produces: precision, recall, F1, false-positive rate, JSON validity, latency, and peak VRAM per model.
 
-- [ ] **Step 1: Write metric tests**
+- [x] **Step 1: Write metric tests**
 
 ```python
 # tests/m0/test_vision_metrics.py
@@ -1509,7 +1509,7 @@ def test_scores_true_false_positive_and_false_negative():
     assert score.recall == 0.5
 ```
 
-- [ ] **Step 2: Implement issue schema and metrics**
+- [x] **Step 2: Implement issue schema and metrics**
 
 ```python
 # src/pptmaker/m0/vision_schema.py
@@ -1556,12 +1556,12 @@ def score_labels(expected: set[str], predicted: set[str]) -> LabelScore:
     return LabelScore(tp, fp, fn, precision, recall)
 ```
 
-- [ ] **Step 3: Run metric tests**
+- [x] **Step 3: Run metric tests**
 
 Run: `conda run -n AI python -m pytest tests/m0/test_vision_metrics.py -v`  
 Expected: PASS.
 
-- [ ] **Step 4: Create deterministic visual cases**
+- [x] **Step 4: Create deterministic visual cases**
 
 ```python
 # benchmarks/vision/generate_cases.py
@@ -1598,7 +1598,7 @@ if __name__ == "__main__":
 Run: `conda run -n AI python benchmarks/vision/generate_cases.py`  
 Expected: three deterministic PNG files under the ignored `artifacts/m0/vision/` directory.
 
-- [ ] **Step 5: Create the benchmark manifest**
+- [x] **Step 5: Create the benchmark manifest**
 
 ```json
 {"case_id":"normal_001","split":"development","image":"artifacts/m0/vision/normal_001.png","expected":[],"license":"synthetic"}
@@ -1608,7 +1608,7 @@ Expected: three deterministic PNG files under the ignored `artifacts/m0/vision/`
 
 The initial manifest validates the harness. Before model selection, add PowerPoint-rendered cases for every defect class and record SHA-256 hashes. Do not commit PNG output; commit only generators, expected labels, and hashes.
 
-- [ ] **Step 6: Benchmark candidates sequentially**
+- [x] **Step 6: Benchmark candidates sequentially**
 
 Implement a common adapter, strict JSON parser, batch runner, CUDA measurement, and report generator before loading any model:
 
@@ -1776,7 +1776,7 @@ Run models strictly sequentially with `max_concurrent_models=1`, batch size 1, a
 
 For each model, record 4-bit weight format, load time, JSON validity, precision, recall, false-positive rate, P50/P95 per-slide latency, total sequential evaluation time, and CUDA peak memory in `docs/evaluations/m0-vision-models.md`. This machine has 8188 MiB physical VRAM; the default budget is 6500 MiB, which is stricter than 85% of physical VRAM. If loading crosses the budget, unload immediately, record BLOCKED, and do not start page evaluation. Measure CPU offload as a separate row. Admission requires recall >=70%, false-positive rate <=20%, and JSON validity >=95%. A model that misses any threshold remains a research preview and is disabled by default. Vision-model selection is exploratory and does not block M1; visual auto-repair remains M7 work.
 
-- [ ] **Step 7: Commit harness and report**
+- [x] **Step 7: Commit harness and report**
 
 ```powershell
 git add src/pptmaker/m0/vision_schema.py src/pptmaker/m0/vision_metrics.py src/pptmaker/m0/vision_adapter.py src/pptmaker/m0/vision_runner.py src/pptmaker/m0/vision_report.py tests/m0/test_vision_metrics.py tests/m0/test_vision_runner.py benchmarks/vision docs/evaluations/m0-vision-models.md
@@ -1795,7 +1795,7 @@ git commit -m "test: add PPT vision model benchmark"
 - Consumes: keyed search provider credentials or explicit user URLs.
 - Produces: normalized `SearchResult` and `AssetCandidate` with provenance and license status.
 
-- [ ] **Step 1: Write provenance contract tests**
+- [x] **Step 1: Write provenance contract tests**
 
 ```python
 # tests/research/test_contracts.py
@@ -1810,7 +1810,7 @@ def test_asset_requires_source_url_and_access_date():
         AssetCandidate(url="https://example.com/a.jpg", license_status=LicenseStatus.UNKNOWN)
 ```
 
-- [ ] **Step 2: Implement normalized contracts**
+- [x] **Step 2: Implement normalized contracts**
 
 ```python
 # src/pptmaker/research/contracts.py
@@ -1842,12 +1842,12 @@ class AssetCandidate(BaseModel):
     accessed_at: date
 ```
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Run: `conda run -n AI python -m pytest tests/research/test_contracts.py -v`  
 Expected: PASS.
 
-- [ ] **Step 4: Measure providers without selecting by reputation**
+- [x] **Step 4: Measure providers without selecting by reputation**
 
 Implement and unit-test this reproducible runner with fake adapters before making network calls:
 
@@ -1913,7 +1913,7 @@ Evaluate at least two keyed search candidates usable from China and at least two
 
 The formal M0 path must fail closed when no key is configured. Manual URL ingestion is evaluated separately. No-key scraping is an experimental row and cannot win the default-provider decision.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/pptmaker/research src/pptmaker/m0/search_runner.py tests/research docs/evaluations/m0-search-and-assets.md
@@ -1935,7 +1935,7 @@ git commit -m "test: evaluate search and asset providers"
 - Consumes: required JSON probe results under `artifacts/m0/`.
 - Produces: nonzero exit when mandatory evidence is missing or failed.
 
-- [ ] **Step 1: Write gate checker test**
+- [x] **Step 1: Write gate checker test**
 
 ```python
 # tests/scripts/test_check_m0_gate.py
@@ -1953,7 +1953,7 @@ def test_gate_fails_when_mandatory_probe_failed(tmp_path: Path):
     assert failures == ["pptx-baseline: fail"]
 ```
 
-- [ ] **Step 2: Implement deterministic gate checker**
+- [x] **Step 2: Implement deterministic gate checker**
 
 ```python
 # scripts/check_m0_gate.py
@@ -1992,16 +1992,16 @@ if __name__ == "__main__":
     raise SystemExit(1 if errors else 0)
 ```
 
-- [ ] **Step 3: Run checker tests**
+- [x] **Step 3: Run checker tests**
 
 Run: `conda run -n AI python -m pytest tests/scripts/test_check_m0_gate.py -v`  
 Expected: PASS.
 
-- [ ] **Step 4: Write evidence-based ADRs and gate report**
+- [x] **Step 4: Write evidence-based ADRs and gate report**
 
 Each ADR must contain context, measured alternatives, decision, rejected alternatives, consequences, rollback trigger, and links to machine-readable evidence. `m0-gate-report.md` must list every probe command, environment versions, pass/fail/block status, known risks, changed assumptions, and the exact M1 entry criteria.
 
-- [ ] **Step 5: Run the complete M0 suite**
+- [x] **Step 5: Run the complete M0 suite**
 
 ```powershell
 conda run -n AI python -m pytest -v
@@ -2014,7 +2014,7 @@ Expected: all offline and Office tests PASS; gate checker exits 0. Online/provid
 
 Open `artifacts/m0/baseline.pptx`, inspect exported PNGs, and review the parser, vision, search, security, and timing reports. Record the user's decision and corrections in `docs/evaluations/m0-gate-report.md`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add docs/adr docs/evaluations/m0-gate-report.md scripts/check_m0_gate.py tests/scripts/test_check_m0_gate.py

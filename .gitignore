@@ -2,6 +2,8 @@
 models/
 projects/
 artifacts/
+!docs/evidence/
+!docs/evidence/**
 
 # Secrets
 .env

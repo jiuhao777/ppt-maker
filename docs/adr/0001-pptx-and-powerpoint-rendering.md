@@ -13,7 +13,8 @@ PowerPoint 进程。机器证据位于 `artifacts/m0/pptx-baseline.json` 和 `ar
 ## 决策
 
 以 `python-pptx` 生成 `.pptx`，以单个、串行、STA 的独立 Worker 调用 PowerPoint 完成真实渲染。
-SlideDSL + Project State 是唯一事实源，PPTX 是产物。任务专属目录中先写临时输出，验证后再发布。
+SlideDSL + Project State 是唯一事实源，PPTX 是产物。Worker 通过输入和请求指纹实现幂等重放，
+冲突键失败关闭；任务专属目录中先写临时输出，验证真实页数与顺序后原子发布。
 
 ## 拒绝方案
 
@@ -24,5 +25,5 @@ SlideDSL + Project State 是唯一事实源，PPTX 是产物。任务专属目�
 ## 后果与回滚触发
 
 首版要求干净环境启动且用户关闭 PowerPoint 窗口；无 PowerPoint 时降级为仅生成文件、不提供真实预览。
-受保护视图、文件占用提示、最终原子替换和崩溃检查点将在纵向链路中补齐。若目标 Office 版本的打开成功率
+受保护视图、文件占用提示和业务流程检查点将在纵向链路中补齐。若目标 Office 版本的打开成功率
 无法达到 100% 或出现误杀用户进程，停止 COM 默认启用并回退到仅生成模式。
