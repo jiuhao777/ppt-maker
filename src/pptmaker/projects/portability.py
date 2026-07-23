@@ -57,7 +57,13 @@ def import_project(data: bytes, repository: ProjectRepository) -> Project:
         ProjectCreate(
             name=exported.name,
             business_state=exported.business_state,
-            execution_state=exported.execution_state,
+            execution_state=(
+                "FAILED_RECOVERABLE"
+                if exported.execution_state in {"RUNNING", "CANCELLING"}
+                else exported.execution_state
+            ),
             last_provider_preset=exported.last_provider_preset,
-        )
+        ),
+        created_at=exported.created_at,
+        updated_at=exported.updated_at,
     )

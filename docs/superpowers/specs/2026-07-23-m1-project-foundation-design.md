@@ -44,7 +44,8 @@ workspace-oriented.
 
 The interface has three views:
 
-- Project list: project cards, create, import, delete, and last-updated time.
+- Project list: a recently-updated project selector plus create, import, export,
+  and confirmed delete controls.
 - Global settings: Provider configuration and capability status.
 - Project workspace: project summary, last Provider preset, and JSON export.
 
@@ -105,7 +106,11 @@ rejects nesting deeper than 20 levels, more than 10,000 keys, and any string
 longer than 1 MiB. Pydantic fields apply narrower limits to known fields such
 as project and Provider names. Imported
 projects receive a new project ID to avoid overwriting an existing project.
-Unknown schema versions fail with a clear message.
+Original creation and update timestamps are preserved. Unknown schema versions
+fail with a clear message.
+
+Because checkpoint rows are not portable, imported `RUNNING` or `CANCELLING`
+projects become `FAILED_RECOVERABLE` instead of creating a phantom execution.
 
 ## Provider Boundary
 
@@ -132,6 +137,8 @@ Connection testing performs capability probes and reports:
 - unsupported endpoint or model.
 
 M1 directly probes basic completion, structured output, and tool calling.
+Structured output passes only when the returned content parses as JSON; tool
+calling passes only when the response contains the requested tool call.
 Vision support and maximum context are reported only when reliable Provider
 metadata is available; otherwise their value is `unknown`. Every capability
 records whether it was `probed`, read from a `preset`, or remains `unknown`.
@@ -186,14 +193,16 @@ Provider clients and API Keys are runtime dependencies and never enter graph
 state.
 
 On startup, persisted executions left in `RUNNING` are reconciled to
-`FAILED_RECOVERABLE`; they never silently become `IDLE`. The restart test
+`FAILED_RECOVERABLE` only when their execution lease is missing or expired;
+they never silently become `IDLE`. The restart test
 starts work in a child process, terminates that process during execution,
 restarts the application service, and verifies this reconciliation.
 
 ## Errors and Recovery
 
 - Invalid import: reject before database mutation.
-- Duplicate project name: allowed; project ID is authoritative.
+- Exact duplicate project name: rejected for create, import, and update; names
+  that differ by case remain distinct.
 - Stale project update: reject and ask the UI to reload.
 - Provider failure: keep the project unchanged and show a categorized error.
 - Database failure: roll back the transaction and show a recoverable error.

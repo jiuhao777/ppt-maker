@@ -1,6 +1,7 @@
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 from pptmaker.projects import ProjectCreate, ProjectRepository, ProjectUpdate
 from pptmaker.providers import OpenAICompatibleProvider, ProviderConfig
@@ -13,8 +14,15 @@ from pptmaker.workflow import (
 
 
 class _Completions:
-    def create(self, **_kwargs):
-        return object()
+    def create(self, **kwargs):
+        if "tools" in kwargs:
+            call = SimpleNamespace(function=SimpleNamespace(name="ping"))
+            message = SimpleNamespace(content=None, tool_calls=[call])
+        elif "response_format" in kwargs:
+            message = SimpleNamespace(content="{}", tool_calls=None)
+        else:
+            message = SimpleNamespace(content="OK", tool_calls=None)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
 class _Client:

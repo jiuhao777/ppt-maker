@@ -5,9 +5,15 @@ from pydantic import BaseModel
 
 
 _PATTERNS = (
-    re.compile(r"(?i)(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;'\"}]+"),
+    re.compile(
+        r"(?i)(['\"]?authorization['\"]?\s*[:=]\s*['\"]?)"
+        r"(?:bearer\s+)?[^\s,;'\"}]+"
+    ),
     re.compile(r"(?i)(bearer\s+)[^\s,;'\"}]+"),
-    re.compile(r"(?i)(api[_-]?key\s*[:=]\s*)[^\s,;'\"}]+"),
+    re.compile(
+        r"(?i)(['\"]?api[_-]?key['\"]?\s*[:=]\s*['\"]?)"
+        r"[^\s,;'\"}]+"
+    ),
     re.compile(r"(?i)\bsk-[A-Za-z0-9_-]+"),
 )
 
@@ -36,8 +42,17 @@ def _redact_value(value):
         return redact_text(value)
     if isinstance(value, tuple):
         return tuple(_redact_value(item) for item in value)
+    if isinstance(value, list):
+        return [_redact_value(item) for item in value]
     if isinstance(value, dict):
-        return {key: _redact_value(item) for key, item in value.items()}
+        redacted = {}
+        for key, item in value.items():
+            normalized = str(key).lower().replace("-", "_")
+            if normalized in {"api_key", "apikey", "authorization"}:
+                redacted[key] = "[REDACTED]"
+            else:
+                redacted[key] = _redact_value(item)
+        return redacted
     return value
 
 

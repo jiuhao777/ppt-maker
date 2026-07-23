@@ -48,10 +48,18 @@ class ProjectRepository:
             updated_at=row[4],
         )
 
-    def create(self, values: ProjectCreate) -> Project:
+    def create(
+        self,
+        values: ProjectCreate,
+        *,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
+    ) -> Project:
         project_id = str(uuid4())
-        now = datetime.now(timezone.utc).isoformat()
-        payload = values.model_dump()
+        now = datetime.now(timezone.utc)
+        created = (created_at or now).isoformat()
+        updated = (updated_at or created_at or now).isoformat()
+        payload = values.model_dump(mode="json")
         payload["schema_version"] = 1
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -60,7 +68,7 @@ class ProjectRepository:
                 raise DuplicateProjectName(values.name)
             connection.execute(
                 "INSERT INTO projects VALUES (?, ?, ?, ?, ?)",
-                (project_id, json.dumps(payload), 1, now, now),
+                (project_id, json.dumps(payload), 1, created, updated),
             )
         return self.get(project_id)
 
@@ -77,7 +85,7 @@ class ProjectRepository:
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT id, payload, version, created_at, updated_at "
-                "FROM projects ORDER BY created_at"
+                "FROM projects ORDER BY updated_at DESC"
             ).fetchall()
         return [self._from_row(row) for row in rows]
 
@@ -91,9 +99,17 @@ class ProjectRepository:
         if current is None:
             raise KeyError(project_id)
         payload = current.model_dump(
+            mode="json",
             exclude={"id", "version", "created_at", "updated_at"}
         )
-        payload.update(values.model_dump(exclude_none=True))
+        changes = values.model_dump(mode="json", exclude_none=True)
+        if "execution_lease_expires_at" in values.model_fields_set:
+            changes["execution_lease_expires_at"] = (
+                values.execution_lease_expires_at.isoformat()
+                if values.execution_lease_expires_at
+                else None
+            )
+        payload.update(changes)
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -121,18 +137,30 @@ class ProjectRepository:
 
     def mark_running_recoverable(self) -> int:
         updated = 0
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
+        updated_at = now.isoformat()
         with self._connect() as connection:
             rows = connection.execute("SELECT id, payload FROM projects").fetchall()
             for project_id, encoded in rows:
                 payload = json.loads(encoded)
                 if payload["execution_state"] != "RUNNING":
                     continue
+                lease = payload.get("execution_lease_expires_at")
+                if lease:
+                    try:
+                        parsed_lease = datetime.fromisoformat(
+                            lease.replace("Z", "+00:00")
+                        )
+                        if parsed_lease > now:
+                            continue
+                    except (TypeError, ValueError):
+                        pass
                 payload["execution_state"] = "FAILED_RECOVERABLE"
+                payload["execution_lease_expires_at"] = None
                 connection.execute(
                     "UPDATE projects SET payload = ?, version = version + 1, "
                     "updated_at = ? WHERE id = ?",
-                    (json.dumps(payload), now, project_id),
+                    (json.dumps(payload), updated_at, project_id),
                 )
                 updated += 1
         return updated

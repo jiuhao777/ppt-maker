@@ -68,3 +68,41 @@ def test_update_cannot_rename_project_to_exact_duplicate(tmp_path):
         )
 
     assert repository.get(second.id).name == "Second"
+
+
+def test_projects_are_ordered_by_most_recent_update(tmp_path):
+    repository = ProjectRepository(tmp_path / "projects.db")
+    first = repository.create(ProjectCreate(name="First"))
+    repository.create(ProjectCreate(name="Second"))
+    repository.update(
+        first.id,
+        ProjectUpdate(last_provider_preset="deepseek"),
+        expected_version=first.version,
+    )
+
+    assert [project.name for project in repository.list()] == ["First", "Second"]
+
+
+def test_execution_lease_can_be_cleared(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    repository = ProjectRepository(tmp_path / "projects.db")
+    project = repository.create(
+        ProjectCreate(
+            name="Running",
+            execution_state="RUNNING",
+            execution_lease_expires_at=datetime.now(timezone.utc)
+            + timedelta(minutes=5),
+        )
+    )
+
+    completed = repository.update(
+        project.id,
+        ProjectUpdate(
+            execution_state="COMPLETED",
+            execution_lease_expires_at=None,
+        ),
+        expected_version=project.version,
+    )
+
+    assert completed.execution_lease_expires_at is None

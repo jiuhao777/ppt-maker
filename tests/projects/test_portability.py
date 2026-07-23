@@ -24,6 +24,8 @@ def test_export_import_preserves_project_semantics(tmp_path):
     assert imported.business_state == project.business_state
     assert imported.execution_state == project.execution_state
     assert imported.last_provider_preset == project.last_provider_preset
+    assert imported.created_at == project.created_at
+    assert imported.updated_at == project.updated_at
 
 
 def test_export_never_contains_provider_credentials(tmp_path):
@@ -34,6 +36,18 @@ def test_export_never_contains_provider_credentials(tmp_path):
 
     assert b"api_key" not in encoded.lower()
     assert b"TEST_KEY" not in encoded
+
+
+def test_imported_running_project_becomes_recoverable(tmp_path):
+    source = ProjectRepository(tmp_path / "source.db")
+    target = ProjectRepository(tmp_path / "target.db")
+    project = source.create(
+        ProjectCreate(name="Running", execution_state="RUNNING")
+    )
+
+    imported = import_project(export_project(project), target)
+
+    assert imported.execution_state == "FAILED_RECOVERABLE"
 
 
 @pytest.mark.parametrize(

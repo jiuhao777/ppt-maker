@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import json
 
 import openai
 
@@ -49,6 +50,7 @@ class OpenAICompatibleProvider:
                     ],
                     "response_format": {"type": "json_object"},
                 },
+                self._has_json_content,
             )
             capabilities["structured_output"] = Capability(
                 value=structured, source="probed"
@@ -73,7 +75,12 @@ class OpenAICompatibleProvider:
                             },
                         }
                     ],
+                    "tool_choice": {
+                        "type": "function",
+                        "function": {"name": "ping"},
+                    },
                 },
+                self._has_ping_tool_call,
             )
             capabilities["tools"] = Capability(value=tools, source="probed")
             if not tools:
@@ -91,11 +98,27 @@ class OpenAICompatibleProvider:
             )
 
     @staticmethod
-    def _optional_probe(client, arguments: dict) -> bool:
+    def _optional_probe(client, arguments: dict, validator: Callable) -> bool:
         try:
-            client.chat.completions.create(**arguments)
-            return True
+            response = client.chat.completions.create(**arguments)
+            return validator(response)
         except (openai.BadRequestError, openai.NotFoundError):
+            return False
+
+    @staticmethod
+    def _has_json_content(response) -> bool:
+        try:
+            json.loads(response.choices[0].message.content)
+            return True
+        except (AttributeError, IndexError, TypeError, json.JSONDecodeError):
+            return False
+
+    @staticmethod
+    def _has_ping_tool_call(response) -> bool:
+        try:
+            calls = response.choices[0].message.tool_calls or []
+            return any(call.function.name == "ping" for call in calls)
+        except (AttributeError, IndexError, TypeError):
             return False
 
 

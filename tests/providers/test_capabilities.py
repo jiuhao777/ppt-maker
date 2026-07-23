@@ -1,5 +1,6 @@
 import httpx
 import openai
+from types import SimpleNamespace
 
 from pptmaker.providers import (
     OpenAICompatibleProvider,
@@ -23,7 +24,16 @@ class FakeCompletions:
         self.calls.append(kwargs)
         if self.failure:
             raise self.failure
-        return object()
+        if "tools" in kwargs:
+            call = SimpleNamespace(
+                function=SimpleNamespace(name="ping")
+            )
+            message = SimpleNamespace(content=None, tool_calls=[call])
+        elif "response_format" in kwargs:
+            message = SimpleNamespace(content="{}", tool_calls=None)
+        else:
+            message = SimpleNamespace(content="OK", tool_calls=None)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
 class FakeClient:
@@ -57,7 +67,7 @@ def test_probe_reports_unsupported_optional_capability():
     def create(**kwargs):
         if "response_format" in kwargs:
             raise openai.BadRequestError("private", response=response, body=None)
-        return object()
+        return FakeCompletions().create(**kwargs)
 
     completions.create = create
     provider = OpenAICompatibleProvider(
@@ -71,6 +81,28 @@ def test_probe_reports_unsupported_optional_capability():
     assert report.capabilities["structured_output"].value is False
     assert report.capabilities["structured_output"].source == "probed"
     assert report.warnings
+
+
+def test_probe_rejects_ignored_structured_output_request():
+    completions = FakeCompletions()
+    original_create = completions.create
+
+    def create(**kwargs):
+        response = original_create(**kwargs)
+        if "response_format" in kwargs:
+            response.choices[0].message.content = "not json"
+        return response
+
+    completions.create = create
+    provider = OpenAICompatibleProvider(
+        CONFIG,
+        client_factory=lambda **_kwargs: FakeClient(completions),
+    )
+
+    report = provider.probe("TEST_KEY")
+
+    assert report.status == "success"
+    assert report.capabilities["structured_output"].value is False
 
 
 def test_probe_returns_safe_authentication_error():

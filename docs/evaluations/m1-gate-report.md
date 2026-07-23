@@ -10,17 +10,19 @@ Final human acceptance: **PASS**
 
 ## Verified evidence
 
-- Test suite: 149 passed, 1 skipped, 5 Office tests deselected.
+- Test suite: 155 passed, 1 skipped, 5 Office tests deselected.
 - Project persistence: SQLite CRUD, restart persistence, optimistic version checks.
 - JSON portability: semantic round-trip with a new UUID; 5 MiB file, 20-level
-  nesting, 10,000-key, 1 MiB string, and schema-version limits.
+  nesting, 10,000-key, 1 MiB string, and schema-version limits. Original
+  timestamps are preserved, while non-portable running states become recoverable.
 - Secret safety: output-layer logging redaction, fixed Provider errors, no API Key
   in SQLite models, JSON exports, capability reports, or checkpoints.
 - Provider boundary: DeepSeek, Kimi, Qwen, and custom OpenAI-compatible presets;
-  basic completion, structured output, and tools are probed.
+  structured output must return valid JSON and tools must return the requested
+  tool call before those capabilities pass.
 - Workflow recovery: SQLite checkpoint reopened successfully; a terminated child
   process left `RUNNING`, which startup reconciliation changed to
-  `FAILED_RECOVERABLE`.
+  `FAILED_RECOVERABLE`; a non-expired execution lease prevents false recovery.
 - Streamlit: smoke test and new-session persistence test passed. The project
   survives a new session while the API Key resets to an empty value.
 - Machine-readable evidence:

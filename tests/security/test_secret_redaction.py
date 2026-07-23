@@ -30,6 +30,17 @@ def test_redaction_handles_message_and_mapping_values():
     assert "TEST_KEY" not in redact_text(
         "request headers={'Authorization': 'Bearer TEST_KEY'}"
     )
+    assert "TEST_KEY" not in redact_text("{'api_key': 'TEST_KEY'}")
+
+
+def test_log_filter_redacts_secret_dictionary_values(caplog):
+    configure_logging()
+
+    logging.getLogger("pptmaker.test").warning(
+        "config=%s", {"api_key": "TEST_KEY"}
+    )
+
+    assert "TEST_KEY" not in caplog.text
 
 
 def _response(status):

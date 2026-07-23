@@ -1,9 +1,10 @@
 import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from pptmaker.projects import ProjectRepository
+from pptmaker.projects import ProjectCreate, ProjectRepository
 from pptmaker.workflow import (
     build_foundation_graph,
     reconcile_interrupted_projects,
@@ -53,3 +54,18 @@ def test_running_project_becomes_recoverable_after_process_death(tmp_path):
     assert repository.get(project_id).execution_state == "RUNNING"
     assert reconcile_interrupted_projects(repository) == 1
     assert repository.get(project_id).execution_state == "FAILED_RECOVERABLE"
+
+
+def test_recovery_keeps_running_project_with_active_lease(tmp_path):
+    repository = ProjectRepository(tmp_path / "projects.db")
+    active = repository.create(
+        ProjectCreate(
+            name="Active",
+            execution_state="RUNNING",
+            execution_lease_expires_at=datetime.now(timezone.utc)
+            + timedelta(minutes=5),
+        )
+    )
+
+    assert reconcile_interrupted_projects(repository) == 0
+    assert repository.get(active.id).execution_state == "RUNNING"
