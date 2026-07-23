@@ -100,3 +100,21 @@ class ProjectRepository:
     def delete(self, project_id: str) -> None:
         with self._connect() as connection:
             connection.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+
+    def mark_running_recoverable(self) -> int:
+        updated = 0
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as connection:
+            rows = connection.execute("SELECT id, payload FROM projects").fetchall()
+            for project_id, encoded in rows:
+                payload = json.loads(encoded)
+                if payload["execution_state"] != "RUNNING":
+                    continue
+                payload["execution_state"] = "FAILED_RECOVERABLE"
+                connection.execute(
+                    "UPDATE projects SET payload = ?, version = version + 1, "
+                    "updated_at = ? WHERE id = ?",
+                    (json.dumps(payload), now, project_id),
+                )
+                updated += 1
+        return updated
