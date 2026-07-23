@@ -1,11 +1,13 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from ipaddress import ip_address
+from typing import Protocol
 from urllib.parse import urljoin, urlsplit
 
 import httpx
 
-from pptmaker.security.network import is_forbidden_ip
+from pptmaker.security.network import ValidatedTarget, is_forbidden_ip
+from pptmaker.security.pinned_http import PinnedConnector
 
 
 class UnsafeUrl(ValueError):
@@ -33,7 +35,27 @@ class SafeFetchPolicy:
 Resolver = Callable[[str], list[str]]
 
 
-def validate_target(url: str, resolver: Resolver, policy: SafeFetchPolicy) -> None:
+class Connector(Protocol):
+    def request(
+        self,
+        target: ValidatedTarget,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+    ): ...
+
+
+def _normalized_ip(value: str) -> str:
+    address = ip_address(value)
+    if getattr(address, "ipv4_mapped", None) is not None:
+        address = address.ipv4_mapped
+    return str(address)
+
+
+def validate_target(
+    url: str,
+    resolver: Resolver,
+    policy: SafeFetchPolicy,
+) -> ValidatedTarget:
     parsed = urlsplit(url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise UnsafeUrl("only absolute HTTP(S) URLs are allowed")
@@ -46,12 +68,12 @@ def validate_target(url: str, resolver: Resolver, policy: SafeFetchPolicy) -> No
     if port not in policy.allowed_ports:
         raise UnsafeUrl("port is forbidden")
     try:
-        ip_address(parsed.hostname)
-        first = second = {parsed.hostname}
+        literal = _normalized_ip(parsed.hostname)
+        first = second = {literal}
     except ValueError:
         try:
-            first = set(resolver(parsed.hostname))
-            second = set(resolver(parsed.hostname))
+            first = {_normalized_ip(value) for value in resolver(parsed.hostname)}
+            second = {_normalized_ip(value) for value in resolver(parsed.hostname)}
         except Exception as exc:
             raise UnsafeUrl("DNS resolution failed") from exc
     if not first or first != second:
@@ -62,6 +84,16 @@ def validate_target(url: str, resolver: Resolver, policy: SafeFetchPolicy) -> No
         raise UnsafeUrl("DNS returned an invalid address") from exc
     if forbidden:
         raise UnsafeUrl("target resolves to a forbidden address")
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    return ValidatedTarget(
+        scheme=parsed.scheme,
+        hostname=parsed.hostname,
+        port=port,
+        path_and_query=path,
+        addresses=tuple(sorted(first)),
+    )
 
 
 def safe_fetch(
@@ -69,17 +101,26 @@ def safe_fetch(
     resolver: Resolver,
     policy: SafeFetchPolicy,
     transport: httpx.BaseTransport | None = None,
+    connector: Connector | None = None,
 ) -> bytes:
     timeout = httpx.Timeout(policy.timeout_seconds)
     current = url
+    production_connector = connector or (
+        None if transport is not None else PinnedConnector(policy.timeout_seconds)
+    )
     with httpx.Client(
         follow_redirects=False,
         timeout=timeout,
         transport=transport,
-    ) as client:
+    ) if transport is not None else _NullContext() as client:
         for redirect_count in range(policy.max_redirects + 1):
-            validate_target(current, resolver, policy)
-            with client.stream("GET", current) as response:
+            target = validate_target(current, resolver, policy)
+            response_context = (
+                client.stream("GET", current)
+                if transport is not None
+                else production_connector.request(target)
+            )
+            with response_context as response:
                 if response.is_redirect:
                     location = response.headers.get("location")
                     if not location or redirect_count == policy.max_redirects:
@@ -107,3 +148,11 @@ def safe_fetch(
                     chunks.append(chunk)
                 return b"".join(chunks)
     raise UnsafeUrl("redirect loop")
+
+
+class _NullContext:
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *_args):
+        return None

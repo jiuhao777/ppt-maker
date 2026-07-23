@@ -88,7 +88,7 @@ POLICIES: dict[str, ProbePolicy] = {
             "src/pptmaker/security/network.py",
             "src/pptmaker/security/uploads.py",
         ),
-        metric_checks={"passed_checks": lambda value: value >= 6},
+        metric_checks={"passed_checks": lambda value: value >= 8},
     ),
     "deepseek-structured-output": ProbePolicy(
         source_paths=COMMON + ("src/pptmaker/m0/deepseek_probe.py",),

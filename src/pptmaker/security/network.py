@@ -1,4 +1,14 @@
+from dataclasses import dataclass
 from ipaddress import ip_address
+
+
+@dataclass(frozen=True)
+class ValidatedTarget:
+    scheme: str
+    hostname: str
+    port: int
+    path_and_query: str
+    addresses: tuple[str, ...]
 
 
 def is_forbidden_ip(value: str) -> bool:

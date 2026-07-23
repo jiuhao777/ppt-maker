@@ -58,6 +58,36 @@ def run_security_probe(root: Path) -> ProbeResult:
     )
 
     rebinding_answers = iter([[public_ip], ["127.0.0.1"]])
+    observed_targets = []
+
+    class SafeResponse:
+        status_code = 200
+        is_redirect = False
+        headers = {"content-type": "image/png"}
+
+        def raise_for_status(self):
+            return None
+
+        def iter_bytes(self):
+            yield b"png"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    class RecordingConnector:
+        def request(self, target, method="GET", headers=None):
+            observed_targets.append(target)
+            return SafeResponse()
+
+    safe_fetch(
+        "https://example.com/image.png",
+        lambda _host: [public_ip],
+        SafeFetchPolicy(),
+        connector=RecordingConnector(),
+    )
     checks = {
         "zip_path_traversal": _must_reject(
             lambda: inspect_zip(traversal, ArchiveLimits()), UnsafeArchive
@@ -99,6 +129,15 @@ def run_security_probe(root: Path) -> ProbeResult:
             ),
             UnsafeUrl,
         ),
+        "connection_uses_validated_ip": (
+            len(observed_targets) == 1
+            and observed_targets[0].addresses == (public_ip,)
+        ),
+        "https_preserves_original_hostname": (
+            len(observed_targets) == 1
+            and observed_targets[0].scheme == "https"
+            and observed_targets[0].hostname == "example.com"
+        ),
     }
     passed = all(checks.values())
     return ProbeResult(
@@ -109,7 +148,6 @@ def run_security_probe(root: Path) -> ProbeResult:
             "passed_checks": sum(checks.values()),
         },
         limitations=[
-            "M5 must pin the validated IP to the socket connection to close DNS TOCTOU.",
             "Fetched content remains untrusted and must be normalized before entering Fact Store.",
             "Asset license metadata and image dimensions are enforced by the later material ingestion boundary.",
         ],
