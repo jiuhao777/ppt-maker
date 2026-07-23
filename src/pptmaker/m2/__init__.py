@@ -31,6 +31,7 @@ from pptmaker.m2.outlines import (
     generate_outline,
     reflect_outline,
 )
+from pptmaker.m2.workflow import M2GraphState, build_m2_graph, initial_state
 
 __all__ = [
     "BusinessState",
@@ -60,4 +61,7 @@ __all__ = [
     "diff_outlines",
     "generate_outline",
     "reflect_outline",
+    "M2GraphState",
+    "build_m2_graph",
+    "initial_state",
 ]
