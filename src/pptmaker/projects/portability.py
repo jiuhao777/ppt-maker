@@ -10,6 +10,9 @@ class InvalidProjectImport(ValueError):
     pass
 
 
+MAX_PROJECT_BYTES = 5 * 1024 * 1024
+
+
 def export_project(project: Project) -> bytes:
     exported = ProjectExport(
         project_id=project.id,
@@ -42,7 +45,7 @@ def _check_limits(value) -> None:
 
 
 def import_project(data: bytes, repository: ProjectRepository) -> Project:
-    if len(data) > 5 * 1024 * 1024:
+    if len(data) > MAX_PROJECT_BYTES:
         raise InvalidProjectImport("JSON file exceeds 5 MiB")
     try:
         decoded = json.loads(data)

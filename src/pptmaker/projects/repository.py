@@ -96,6 +96,16 @@ class ProjectRepository:
         payload.update(values.model_dump(exclude_none=True))
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if values.name is not None:
+                existing = connection.execute(
+                    "SELECT id, payload FROM projects WHERE id != ?",
+                    (project_id,),
+                ).fetchall()
+                if any(
+                    json.loads(row[1])["name"] == values.name for row in existing
+                ):
+                    raise DuplicateProjectName(values.name)
             cursor = connection.execute(
                 "UPDATE projects SET payload = ?, version = version + 1, "
                 "updated_at = ? WHERE id = ? AND version = ?",

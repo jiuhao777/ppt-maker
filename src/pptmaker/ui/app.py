@@ -1,3 +1,5 @@
+import sqlite3
+
 import streamlit as st
 
 from pptmaker.app_paths import database_path
@@ -7,9 +9,11 @@ from pptmaker.projects import (
     ProjectCreate,
     ProjectRepository,
     ProjectUpdate,
+    VersionConflict,
 )
 from pptmaker.projects.portability import (
     InvalidProjectImport,
+    MAX_PROJECT_BYTES,
     export_project,
     import_project,
 )
@@ -82,11 +86,16 @@ def _create_and_import(repository: ProjectRepository) -> None:
                     st.rerun()
                 except DuplicateProjectName:
                     st.warning("项目名称已存在，请使用其他名称。")
+                except sqlite3.Error:
+                    st.error("本地数据库操作失败，请重试。")
 
     with st.container(border=True):
         st.subheader("导入项目")
         uploaded = st.file_uploader("选择项目 JSON", type=["json"])
         if st.button("导入", icon=":material/upload:", disabled=uploaded is None):
+            if uploaded.size > MAX_PROJECT_BYTES:
+                st.error("项目文件超过 5 MiB 安全限制。")
+                return
             try:
                 project = import_project(uploaded.getvalue(), repository)
                 st.session_state.selected_project_id = project.id
@@ -95,11 +104,16 @@ def _create_and_import(repository: ProjectRepository) -> None:
                 st.error("项目文件无效或超过安全限制。")
             except DuplicateProjectName:
                 st.warning("同名项目已存在，无法导入。")
+            except sqlite3.Error:
+                st.error("本地数据库操作失败，请重试。")
 
 
 def _delete_project(repository: ProjectRepository, project_id: str) -> None:
-    repository.delete(project_id)
-    st.session_state.selected_project_id = None
+    try:
+        repository.delete(project_id)
+        st.session_state.selected_project_id = None
+    except sqlite3.Error:
+        st.session_state.ui_error = "本地数据库操作失败，请重试。"
 
 
 def _project_workspace(repository: ProjectRepository) -> None:
@@ -141,12 +155,17 @@ def _project_workspace(repository: ProjectRepository) -> None:
             key=f"project_provider_{project.id}",
         )
         if st.button("保存项目设置", icon=":material/save:"):
-            repository.update(
-                project.id,
-                ProjectUpdate(last_provider_preset=selected_provider),
-                expected_version=project.version,
-            )
-            st.success("项目设置已保存。")
+            try:
+                repository.update(
+                    project.id,
+                    ProjectUpdate(last_provider_preset=selected_provider),
+                    expected_version=project.version,
+                )
+                st.success("项目设置已保存。")
+            except VersionConflict:
+                st.warning("项目已被其他操作更新，请刷新后重试。")
+            except sqlite3.Error:
+                st.error("本地数据库操作失败，请重试。")
 
         st.download_button(
             "导出 JSON",
@@ -173,20 +192,30 @@ def main() -> None:
     st.set_page_config(page_title="PPT Maker", page_icon=":material/slideshow:")
     configure_logging()
     initialize_session_state(st.session_state)
-    repository = ProjectRepository(database_path())
-    if not st.session_state.startup_reconciled:
-        reconcile_interrupted_projects(repository)
-        st.session_state.startup_reconciled = True
+    ui_error = st.session_state.pop("ui_error", None)
+    if ui_error:
+        st.error(ui_error)
+    try:
+        repository = ProjectRepository(database_path())
+        if not st.session_state.startup_reconciled:
+            reconcile_interrupted_projects(repository)
+            st.session_state.startup_reconciled = True
+    except (OSError, sqlite3.Error):
+        st.error("无法打开本地项目数据库，请检查用户数据目录。")
+        return
 
     with st.sidebar:
         _provider_settings()
 
     st.title("PPT Maker")
     st.caption("本地 AI 演示文稿工作区")
-    _create_and_import(repository)
-    st.divider()
-    st.subheader("项目工作区")
-    _project_workspace(repository)
+    try:
+        _create_and_import(repository)
+        st.divider()
+        st.subheader("项目工作区")
+        _project_workspace(repository)
+    except sqlite3.Error:
+        st.error("本地数据库操作失败，请重试。")
 
 
 if __name__ == "__main__":

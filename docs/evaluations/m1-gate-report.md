@@ -6,14 +6,11 @@ Date: 2026-07-23
 
 Automated gate: **PASS**
 
-Final human acceptance: **PENDING**
-
-The implementation is complete. Final acceptance requires one local UI walkthrough
-and one DeepSeek capability probe with a runtime environment Key.
+Final human acceptance: **PASS**
 
 ## Verified evidence
 
-- Test suite: 144 passed, 1 skipped, 5 Office tests deselected.
+- Test suite: 149 passed, 1 skipped, 5 Office tests deselected.
 - Project persistence: SQLite CRUD, restart persistence, optimistic version checks.
 - JSON portability: semantic round-trip with a new UUID; 5 MiB file, 20-level
   nesting, 10,000-key, 1 MiB string, and schema-version limits.
@@ -39,20 +36,18 @@ and one DeepSeek capability probe with a runtime environment Key.
 - LangGraph 1.2.9
 - langgraph-checkpoint-sqlite 3.1.0
 
-## Pending human checks
+## Human acceptance
 
-1. Run `python -m streamlit run src/pptmaker/ui/app.py`.
-2. Confirm create, restart persistence, JSON export/import, and confirmed delete
-   are understandable.
-3. Enter a runtime DeepSeek Key, run connection testing, then close or refresh the
-   tab and confirm the Key field is empty.
+The user confirmed:
 
-Playwright loaded the local Streamlit page shell and password control, but the
-Codex Windows host reclaimed the temporary server between CLI calls before the
-multi-step WebSocket flow could complete. This item is not reported as passed.
+- DeepSeek runtime connection and capability probing succeeded;
+- project creation, JSON export/import, and confirmed deletion worked;
+- exact duplicate creation/import was rejected;
+- refreshing cleared the API Key while persisted project data remained.
 
-The explicit DeepSeek online test skipped because `DEEPSEEK_API_KEY` was absent
-from the test process. No Key was read from chat or written to disk.
+The explicit pytest DeepSeek test skipped because `DEEPSEEK_API_KEY` was absent
+from the automated test process. The successful UI probe provides the M1 online
+acceptance evidence. No Key was read from chat or written to disk.
 
 ## Known limitations
 
@@ -67,7 +62,6 @@ from the test process. No Key was read from chat or written to disk.
 
 ## M2 entry criteria
 
-Begin M2 after the user confirms the three local UI checks above and the DeepSeek
-runtime capability test succeeds. M2 may consume project IDs, session Provider
-configuration, safe capability reports, and LangGraph checkpoints; it must not
-persist API Keys.
+M1 entry requirements for M2 are satisfied. M2 may consume project IDs, session
+Provider configuration, safe capability reports, and LangGraph checkpoints; it
+must not persist API Keys.
