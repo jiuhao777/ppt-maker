@@ -34,6 +34,7 @@ from pptmaker.m2.interview import (
 from pptmaker.m2.outlines import (
     build_research_tasks,
     diff_outlines,
+    deduplicate_research_tasks,
     generate_outline,
     reflect_outline,
 )
@@ -77,6 +78,7 @@ __all__ = [
     "remaining_question_count",
     "build_research_tasks",
     "diff_outlines",
+    "deduplicate_research_tasks",
     "generate_outline",
     "reflect_outline",
     "M2GraphState",

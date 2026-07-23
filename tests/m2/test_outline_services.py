@@ -8,10 +8,12 @@ from pptmaker.m2.models import (
 )
 from pptmaker.m2.outlines import (
     build_research_tasks,
+    deduplicate_research_tasks,
     diff_outlines,
     generate_outline,
     reflect_outline,
 )
+from pptmaker.m2.models import ResearchTask
 
 
 def page(page_id, order, title, *, gaps=None, sources=None):
@@ -137,3 +139,33 @@ def test_generation_runs_one_bounded_quality_correction():
 
     assert [item.title for item in result.pages] == ["Start", "Finish"]
     assert model.calls == 2
+
+
+def research(question, material_type, page_id):
+    return ResearchTask(
+        project_id="p1",
+        outline_version=1,
+        question=question,
+        page_id=page_id,
+        material_type=material_type,
+        priority="medium",
+    )
+
+
+def test_equivalent_research_gaps_merge_across_pages():
+    merged = deduplicate_research_tasks([
+        research("市场规模？", "data", "p1"),
+        research("市场 规模", "data", "p2"),
+    ])
+
+    assert len(merged) == 1
+    assert merged[0].related_page_ids == ["p1", "p2"]
+
+
+def test_same_words_with_different_material_types_do_not_merge():
+    tasks = [
+        research("市场规模", "data", "p1"),
+        research("市场规模", "image", "p1"),
+    ]
+
+    assert len(deduplicate_research_tasks(tasks)) == 2

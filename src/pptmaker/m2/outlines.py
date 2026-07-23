@@ -1,5 +1,6 @@
 import json
 import re
+import unicodedata
 
 from pptmaker.m2.models import (
     DeckOutline,
@@ -126,12 +127,13 @@ def diff_outlines(old: DeckOutline, new: DeckOutline) -> OutlineDiff:
 
 
 def build_research_tasks(outline: DeckOutline) -> list[ResearchTask]:
-    return [
+    tasks = [
         ResearchTask(
             project_id=outline.project_id,
             outline_version=outline.version,
             question=gap.question,
             page_id=page.id,
+            related_page_ids=[page.id],
             material_type=gap.material_type,
             priority=gap.priority,
             search_hint=gap.search_hint,
@@ -139,3 +141,42 @@ def build_research_tasks(outline: DeckOutline) -> list[ResearchTask]:
         for page in outline.pages
         for gap in page.gaps
     ]
+    return deduplicate_research_tasks(tasks)
+
+
+def _normalized_question(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).lower()
+    return re.sub(r"[\s?？!！。.,，:：;；]+", "", normalized)
+
+
+def deduplicate_research_tasks(
+    tasks: list[ResearchTask],
+) -> list[ResearchTask]:
+    priority_order = {"low": 0, "medium": 1, "high": 2}
+    merged = {}
+    order = []
+    for task in tasks:
+        key = (_normalized_question(task.question), task.material_type)
+        pages = task.related_page_ids or [task.page_id]
+        if key not in merged:
+            merged[key] = task.model_copy(
+                update={"related_page_ids": list(dict.fromkeys(pages))}
+            )
+            order.append(key)
+            continue
+        existing = merged[key]
+        combined_pages = list(
+            dict.fromkeys([*existing.related_page_ids, *pages])
+        )
+        priority = (
+            task.priority
+            if priority_order[task.priority] > priority_order[existing.priority]
+            else existing.priority
+        )
+        merged[key] = existing.model_copy(
+            update={
+                "related_page_ids": combined_pages,
+                "priority": priority,
+            }
+        )
+    return [merged[key] for key in order]

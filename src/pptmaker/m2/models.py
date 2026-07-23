@@ -153,6 +153,7 @@ class ResearchTask(BaseModel):
     outline_version: int = Field(ge=1)
     question: str = Field(min_length=1, max_length=500)
     page_id: str
+    related_page_ids: list[str] = Field(default_factory=list, max_length=100)
     material_type: ResearchMaterialType
     priority: Literal["high", "medium", "low"]
     search_hint: str = Field(default="", max_length=500)
