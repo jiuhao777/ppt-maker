@@ -17,6 +17,11 @@ from pptmaker.m2.models import (
     ResearchTask,
     RequirementBrief,
     RequirementField,
+    ReworkImpact,
+    ReworkRequest,
+    TaskType,
+    CreationMethod,
+    ReworkMode,
 )
 from pptmaker.m2.repository import M2Repository
 from pptmaker.m2.interview import (
@@ -53,6 +58,11 @@ __all__ = [
     "ResearchTask",
     "RequirementBrief",
     "RequirementField",
+    "ReworkImpact",
+    "ReworkRequest",
+    "TaskType",
+    "CreationMethod",
+    "ReworkMode",
     "accept_unknown",
     "extract_requirements",
     "plan_next_question",

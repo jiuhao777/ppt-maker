@@ -5,8 +5,11 @@ from pptmaker.m2.models import (
     ConversationTurn,
     DeckOutline,
     MaterialChunk,
+    DeckOutlineDraft,
+    ReworkImpact,
     ResearchTask,
     RequirementBrief,
+    RequirementField,
 )
 
 
@@ -190,6 +193,8 @@ class M2Repository:
                     "version": version,
                     "parent_version": current.version,
                     "status": "DRAFT",
+                    "creation_method": "MANUAL_EDIT",
+                    "change_summary": "手工编辑",
                 }
             )
             self._insert_outline(connection, updated)
@@ -245,9 +250,85 @@ class M2Repository:
             raise KeyError((project_id, version))
         return self.create_outline(
             historical.model_copy(
-                update={"status": "DRAFT", "parent_version": version}
+                update={
+                    "status": "DRAFT",
+                    "parent_version": version,
+                    "creation_method": "RESTORED",
+                    "change_summary": f"恢复自 v{version}",
+                }
             )
         )
+
+    def commit_rework(
+        self,
+        current: DeckOutline,
+        draft: DeckOutlineDraft,
+        impact: ReworkImpact,
+        brief: RequirementBrief,
+    ) -> DeckOutline:
+        current_ids = {page.id for page in current.pages}
+        if not set(impact.impacted_page_ids) <= current_ids:
+            raise ValueError("rework impact contains unknown pages")
+        updates = {}
+        for field_name, value in impact.requirement_updates.items():
+            if field_name not in RequirementBrief.model_fields or field_name in {
+                "schema_version",
+                "project_id",
+                "task_type",
+                "special_requirements",
+            }:
+                raise ValueError("invalid requirement update")
+            updates[field_name] = RequirementField(
+                value=value,
+                confidence=1,
+                source="user",
+            )
+        updated_brief = brief.model_copy(update=updates)
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                "SELECT version, payload FROM m2_outlines "
+                "WHERE project_id = ? AND status = 'DRAFT'",
+                (current.project_id,),
+            ).fetchall()
+            for old_version, payload in rows:
+                superseded = DeckOutline.model_validate_json(payload).model_copy(
+                    update={"status": "SUPERSEDED"}
+                )
+                connection.execute(
+                    "UPDATE m2_outlines SET status = ?, payload = ? "
+                    "WHERE project_id = ? AND version = ?",
+                    (
+                        superseded.status,
+                        superseded.model_dump_json(),
+                        current.project_id,
+                        old_version,
+                    ),
+                )
+            version = self._next_outline_version(connection, current.project_id)
+            created = DeckOutline(
+                project_id=current.project_id,
+                version=version,
+                status="DRAFT",
+                parent_version=current.version,
+                creation_method=(
+                    "AI_GLOBAL_REWORK"
+                    if impact.mode == "global"
+                    else "AI_LOCAL_REWORK"
+                ),
+                change_summary=impact.feedback,
+                **draft.model_dump(),
+            )
+            connection.execute(
+                """
+                INSERT INTO m2_briefs (project_id, payload) VALUES (?, ?)
+                ON CONFLICT(project_id) DO UPDATE SET payload = excluded.payload
+                """,
+                (current.project_id, updated_brief.model_dump_json()),
+            )
+            self._insert_outline(connection, created)
+        return created
 
     def replace_research_tasks(
         self,

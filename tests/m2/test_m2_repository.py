@@ -1,4 +1,10 @@
-from pptmaker.m2.models import DeckOutline, OutlinePage, RequirementBrief
+from pptmaker.m2.models import (
+    DeckOutline,
+    DeckOutlineDraft,
+    OutlinePage,
+    RequirementBrief,
+    ReworkImpact,
+)
 from pptmaker.m2.repository import M2Repository
 from pptmaker.projects import ProjectCreate, ProjectRepository, ProjectUpdate
 
@@ -71,3 +77,40 @@ def test_project_accepts_m2_business_state(tmp_path):
     )
 
     assert updated.business_state == "WAITING_FOR_USER"
+
+
+def test_rework_commit_sets_metadata_and_updates_brief_atomically(tmp_path):
+    repository = M2Repository(tmp_path / "pptmaker.db")
+    current = repository.create_outline(outline())
+    impact = ReworkImpact(
+        mode="global",
+        feedback="制造业改为服务业",
+        impacted_page_ids=[current.pages[0].id],
+        reasons={current.pages[0].id: "行业变化"},
+        requirement_updates={"purpose": "服务业 AI 转型"},
+        refresh_research_tasks=True,
+    )
+    draft = DeckOutlineDraft(
+        narrative="服务业 AI 转型",
+        target_slides=1,
+        pages=[page("服务业机会")],
+    )
+    brief = RequirementBrief(project_id=current.project_id)
+
+    created = repository.commit_rework(current, draft, impact, brief)
+
+    assert created.version == 2
+    assert created.creation_method == "AI_GLOBAL_REWORK"
+    assert created.parent_version == 1
+    assert repository.get_brief(current.project_id).purpose.value == "服务业 AI 转型"
+
+
+def test_manual_and_restored_versions_record_creation_method(tmp_path):
+    repository = M2Repository(tmp_path / "pptmaker.db")
+    original = repository.create_outline(outline())
+    edited = repository.update_outline(original, pages=[page("Edited")])
+    restored = repository.restore_outline("p1", original.version)
+
+    assert original.creation_method == "GENERATED"
+    assert edited.creation_method == "MANUAL_EDIT"
+    assert restored.creation_method == "RESTORED"

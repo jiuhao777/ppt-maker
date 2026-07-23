@@ -17,6 +17,24 @@ BusinessState = Literal[
 OutlineStatus = Literal["DRAFT", "APPROVED", "SUPERSEDED"]
 MaterialStatus = Literal["parsed", "unrecognized", "rejected", "failed"]
 ResearchMaterialType = Literal["fact", "data", "case", "image", "quote"]
+TaskType = Literal[
+    "work_report",
+    "project_report",
+    "pitch",
+    "thesis",
+    "teaching",
+    "data_report",
+    "event",
+    "custom",
+]
+CreationMethod = Literal[
+    "GENERATED",
+    "MANUAL_EDIT",
+    "AI_GLOBAL_REWORK",
+    "AI_LOCAL_REWORK",
+    "RESTORED",
+]
+ReworkMode = Literal["global", "local"]
 
 
 class RequirementField(BaseModel):
@@ -39,12 +57,15 @@ class RequirementBrief(BaseModel):
     priorities: RequirementField = Field(default_factory=RequirementField)
     source_boundary: RequirementField = Field(default_factory=RequirementField)
     quality_preference: RequirementField = Field(default_factory=RequirementField)
+    task_type: TaskType = "custom"
+    special_requirements: dict[str, RequirementField] = Field(default_factory=dict)
 
 
 class InterviewQuestion(BaseModel):
     field: str
     text: str = Field(min_length=1, max_length=500)
     reason: str = Field(min_length=1, max_length=300)
+    options: list[str] = Field(default_factory=list, max_length=4)
     allow_unknown: Literal[True] = True
 
 
@@ -106,6 +127,23 @@ class DeckOutline(DeckOutlineDraft):
     version: int = Field(ge=1)
     status: OutlineStatus
     parent_version: int | None = Field(default=None, ge=1)
+    creation_method: CreationMethod = "GENERATED"
+    change_summary: str = Field(default="", max_length=2_000)
+
+
+class ReworkRequest(BaseModel):
+    mode: ReworkMode
+    feedback: str = Field(min_length=1, max_length=2_000)
+    selected_page_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class ReworkImpact(BaseModel):
+    mode: ReworkMode
+    feedback: str = Field(min_length=1, max_length=2_000)
+    impacted_page_ids: list[str] = Field(min_length=1, max_length=100)
+    reasons: dict[str, str]
+    requirement_updates: dict[str, str] = Field(default_factory=dict)
+    refresh_research_tasks: bool
 
 
 class ResearchTask(BaseModel):
