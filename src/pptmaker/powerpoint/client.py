@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -56,6 +57,7 @@ def terminate_owned_powerpoint(
 
 def _render_with_timeout_unlocked(request: RenderRequest) -> RenderResponse:
     started = time.perf_counter()
+    worker_environment = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     process = subprocess.Popen(
         [sys.executable, "-m", "pptmaker.powerpoint.worker"],
         stdin=subprocess.PIPE,
@@ -63,6 +65,7 @@ def _render_with_timeout_unlocked(request: RenderRequest) -> RenderResponse:
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
+        env=worker_environment,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     try:
