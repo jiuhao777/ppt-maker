@@ -1,0 +1,41 @@
+{
+  "files": [
+    {
+      "path": "docs/evidence/m0/deepseek-structured-output.json",
+      "sha256": "f4d532e3bb9c757c4cef9881eb4ecfa4c29f2d915c2834feaa8deb9fe4113a17",
+      "size": 1168
+    },
+    {
+      "path": "docs/evidence/m0/geometry-checks.json",
+      "sha256": "ddd34bb9141a5bea7c6f41f9ff7542f9d116f04ab0cae102767ccfd26f26e532",
+      "size": 697
+    },
+    {
+      "path": "docs/evidence/m0/parser-core.json",
+      "sha256": "77d7fd96e0ef84f6089a5f5abb4681845cacea8baa588ddf0509621d9e1a7fbd",
+      "size": 709
+    },
+    {
+      "path": "docs/evidence/m0/powerpoint-worker.json",
+      "sha256": "e929990b8e8e2ded11b4087203cc6cf547ee0ceb72589f7b7c2e06cbdf31c2cd",
+      "size": 2313
+    },
+    {
+      "path": "docs/evidence/m0/pptx-baseline.json",
+      "sha256": "3f157bdfdc4f5052ec27f1af4d9442a7cc742e70ea305eb2faba0fe8a8e797d4",
+      "size": 782
+    },
+    {
+      "path": "docs/evidence/m0/upload-security.json",
+      "sha256": "72d1fed141e6d4e6492f0df054ba124c5485fcd32550dee5fa7744726a45f0e5",
+      "size": 1074
+    }
+  ],
+  "schema_version": 1,
+  "tests": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 116
+  }
+}

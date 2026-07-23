@@ -1,0 +1,74 @@
+{
+  "details": {
+    "normal_response": {
+      "details": {},
+      "elapsed_seconds": 2.842824199993629,
+      "error": null,
+      "owned_pid": 20496,
+      "slide_images": [
+        "artifacts/m0/powerpoint-probe/1784784796539384000/normal/幻灯片1.PNG",
+        "artifacts/m0/powerpoint-probe/1784784796539384000/normal/幻灯片2.PNG"
+      ],
+      "status": "success"
+    },
+    "office_environment": {
+      "macro_vba_warnings": null,
+      "office_bitness": "x64",
+      "office_products": "OneNoteFreeRetail,HomeStudent2021Retail",
+      "office_version": "16.0.15128.20246"
+    },
+    "timeout_identity": {
+      "heartbeat": 1784784807.281813,
+      "pid": 6344,
+      "process_created_at": 1784784803.483379,
+      "run_id": "timeout"
+    },
+    "timeout_response": {
+      "details": {
+        "cleanup_attempted": true
+      },
+      "elapsed_seconds": 5.081496700004209,
+      "error": "worker hard timeout",
+      "owned_pid": null,
+      "slide_images": [],
+      "status": "failed"
+    }
+  },
+  "environment": {
+    "platform": "win32",
+    "ppt-maker": "0.1.0",
+    "psutil": "7.1.3",
+    "pydantic": "2.13.4",
+    "python": "3.10.20",
+    "python-pptx": "1.0.2",
+    "pywin32": "311"
+  },
+  "evidence": [
+    {
+      "path": "artifacts/m0/powerpoint-probe/1784784796539384000/normal/幻灯片1.PNG",
+      "sha256": "5e91f8b61950b5134c83a9414137f631d2a84e4375040eae4948974907493f45",
+      "size": 24440
+    },
+    {
+      "path": "artifacts/m0/powerpoint-probe/1784784796539384000/normal/幻灯片2.PNG",
+      "sha256": "e629f5c57ba77fff457eb12798b11e755b5d9c972c1bed16c9dc0927a0e93c05",
+      "size": 23333
+    }
+  ],
+  "generated_at": "2026-07-23T05:33:27Z",
+  "limitations": [
+    "Formal M0 support requires no pre-existing PowerPoint instance.",
+    "Protected View recovery and final PPTX atomic replacement are deferred."
+  ],
+  "metrics": {
+    "normal_elapsed_seconds": 2.842824199993629,
+    "normal_process_stopped": true,
+    "rendered_slides": 2,
+    "timeout_elapsed_seconds": 5.081496700004209,
+    "timeout_orphaned": false
+  },
+  "name": "powerpoint-worker",
+  "schema_version": 2,
+  "source_fingerprint": "33fee85a2472fc020a07bd783e65de1e7778aca71ac9b853adaefec63c5e20f4",
+  "status": "pass"
+}

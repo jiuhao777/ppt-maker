@@ -1,0 +1,33 @@
+{
+  "details": {},
+  "environment": {
+    "platform": "win32",
+    "ppt-maker": "0.1.0",
+    "psutil": "7.1.3",
+    "pydantic": "2.13.4",
+    "python": "3.10.20",
+    "python-pptx": "1.0.2",
+    "pywin32": "311"
+  },
+  "evidence": [
+    {
+      "path": "artifacts/m0/baseline.pptx",
+      "sha256": "df8d4dc2124ea25bcf9d7c22c202afb02bc27371af49bfef599c44f3769615ea",
+      "size": 37512
+    }
+  ],
+  "generated_at": "2026-07-23T05:33:16Z",
+  "limitations": [],
+  "metrics": {
+    "charts": 1,
+    "images": 1,
+    "shapes": 1,
+    "slides": 2,
+    "tables": 1,
+    "text_boxes": 2
+  },
+  "name": "pptx-baseline",
+  "schema_version": 2,
+  "source_fingerprint": "9cb056eea2950664f1163950486b574a2fda40e4bad4831f93ecd1566b9048b5",
+  "status": "pass"
+}

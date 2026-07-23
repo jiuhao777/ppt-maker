@@ -1,0 +1,37 @@
+{
+  "details": {
+    "checks": {
+      "cloud_metadata": true,
+      "connection_uses_validated_ip": true,
+      "dns_rebinding": true,
+      "https_preserves_original_hostname": true,
+      "office_macro": true,
+      "redirect_revalidation": true,
+      "response_mime": true,
+      "zip_path_traversal": true
+    }
+  },
+  "environment": {
+    "platform": "win32",
+    "ppt-maker": "0.1.0",
+    "psutil": "7.1.3",
+    "pydantic": "2.13.4",
+    "python": "3.10.20",
+    "python-pptx": "1.0.2",
+    "pywin32": "311"
+  },
+  "evidence": [],
+  "generated_at": "2026-07-23T05:33:16Z",
+  "limitations": [
+    "Fetched content remains untrusted and must be normalized before entering Fact Store.",
+    "Asset license metadata and image dimensions are enforced by the later material ingestion boundary."
+  ],
+  "metrics": {
+    "challenge_checks": 8,
+    "passed_checks": 8
+  },
+  "name": "upload-security",
+  "schema_version": 2,
+  "source_fingerprint": "2cf231ed66fe7ee446a116214779a10c215dbea9d2b7340e55a4d4cc4a56e738",
+  "status": "pass"
+}

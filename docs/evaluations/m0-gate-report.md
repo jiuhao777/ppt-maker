@@ -27,6 +27,7 @@ PPTX 和导出 PNG 后记录结论。
 
 所有命令在仓库根目录通过 `conda run -n AI` 执行。最终门禁：
 `conda run -n AI python scripts/check_m0_gate.py`。
+脱敏机器证据及 SHA-256 清单位于 `docs/evidence/m0/manifest.json`。
 
 ## 探索项
 
