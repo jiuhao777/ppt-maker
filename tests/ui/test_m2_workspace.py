@@ -3,6 +3,11 @@ from streamlit.testing.v1 import AppTest
 from pptmaker.m2.models import DeckOutline, OutlinePage, RequirementBrief
 from pptmaker.m2.repository import M2Repository
 from pptmaker.projects import ProjectCreate, ProjectRepository
+from pptmaker.ui.m2_workspace import (
+    apply_pending_version,
+    outline_version_label,
+    queue_version_selection,
+)
 
 
 def test_m2_workspace_shows_task_and_requirement_context(monkeypatch, tmp_path):
@@ -50,3 +55,35 @@ def test_outline_approval_names_exact_version(monkeypatch, tmp_path):
     assert not app.exception
     assert any(item.label == "批准大纲 v1" for item in app.button)
     assert any(item.label == "新增页面" for item in app.button)
+    assert any(item.label == "分析影响范围" for item in app.button)
+
+
+def test_pending_version_becomes_selected_before_widget_creation():
+    state = {}
+    queue_version_selection(state, "p1", 2)
+
+    apply_pending_version(state, "p1")
+
+    assert state["m2_outline_version_p1"] == 2
+    assert "m2_pending_version_p1" not in state
+
+
+def test_version_label_includes_status_and_creation_method():
+    outline = DeckOutline(
+        project_id="p1",
+        version=2,
+        status="DRAFT",
+        narrative="Story",
+        target_slides=1,
+        creation_method="MANUAL_EDIT",
+        pages=[
+            OutlinePage(
+                order=1,
+                section="Intro",
+                title="Opening",
+                objective="Frame",
+            )
+        ],
+    )
+
+    assert outline_version_label(outline) == "v2 · DRAFT · MANUAL_EDIT"

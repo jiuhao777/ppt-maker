@@ -1,4 +1,5 @@
 import sqlite3
+from collections.abc import MutableMapping
 
 import streamlit as st
 from langgraph.types import Command
@@ -8,11 +9,15 @@ from pptmaker.m2.interview import (
     accept_unknown,
     extract_requirements,
     plan_next_question,
+    remaining_question_count,
 )
 from pptmaker.m2.materials import ingest_material
 from pptmaker.m2.models import (
     ConversationTurn,
+    DeckOutline,
     OutlinePage,
+    ReworkImpact,
+    ReworkRequest,
     RequirementField,
 )
 from pptmaker.m2.outlines import (
@@ -21,6 +26,7 @@ from pptmaker.m2.outlines import (
     generate_outline,
 )
 from pptmaker.m2.repository import M2Repository
+from pptmaker.m2.rework import InvalidRework, analyze_rework, apply_rework
 from pptmaker.m2.workflow import build_m2_graph, initial_state
 from pptmaker.projects import ProjectRepository, ProjectUpdate
 from pptmaker.providers import ProviderConfig, StructuredModel
@@ -36,6 +42,26 @@ ASSUMPTIONS = {
     "priorities": "暂按主题的核心问题与结论优先，后续验证",
     "style": "暂按简洁专业风格设计，后续验证",
 }
+
+
+def queue_version_selection(
+    state: MutableMapping,
+    project_id: str,
+    version: int,
+) -> None:
+    state[f"m2_pending_version_{project_id}"] = version
+
+
+def apply_pending_version(state: MutableMapping, project_id: str) -> None:
+    pending_key = f"m2_pending_version_{project_id}"
+    if pending_key in state:
+        state[f"m2_outline_version_{project_id}"] = state.pop(pending_key)
+
+
+def outline_version_label(outline: DeckOutline) -> str:
+    return (
+        f"v{outline.version} · {outline.status} · {outline.creation_method}"
+    )
 
 
 def _provider() -> StructuredModel:
@@ -211,10 +237,19 @@ def _render_interview(project, projects, repository):
 
     st.markdown(f"**{question.text}**")
     st.caption(question.reason)
+    st.caption(f"预计还需约 {remaining_question_count(brief)} 个关键问题")
     with st.form(f"m2_answer_{project.id}_{question.field}"):
-        answer = st.text_input("你的回答")
+        choice = st.radio(
+            "建议选项",
+            [*question.options, "自行输入"],
+            index=None,
+        )
+        custom_answer = st.text_input("补充或自行输入")
         submitted = st.form_submit_button("提交回答")
     if submitted:
+        answer = custom_answer.strip() or (
+            choice if choice and choice != "自行输入" else ""
+        )
         if not answer.strip():
             st.warning("请输入回答，或选择“不知道/不确定”。")
         elif not st.session_state.api_key:
@@ -267,11 +302,13 @@ def _render_outline(project, projects, repository):
 
     st.subheader("结构大纲")
     versions = [item.version for item in outlines]
+    by_version = {item.version: item for item in outlines}
+    apply_pending_version(st.session_state, project.id)
     selected_version = st.selectbox(
         "大纲版本",
         versions,
         index=len(versions) - 1,
-        format_func=lambda value: f"v{value}",
+        format_func=lambda value: outline_version_label(by_version[value]),
         key=f"m2_outline_version_{project.id}",
     )
     selected = repository.get_outline(project.id, selected_version)
@@ -348,11 +385,14 @@ def _render_outline(project, projects, repository):
                     item.model_copy(update={"order": index})
                     for index, item in enumerate(edited, start=1)
                 ]
-                repository.update_outline(
+                created = repository.update_outline(
                     selected,
                     narrative=narrative,
                     target_slides=len(edited),
                     pages=edited,
+                )
+                queue_version_selection(
+                    st.session_state, project.id, created.version
                 )
                 st.rerun()
 
@@ -369,10 +409,13 @@ def _render_outline(project, projects, repository):
                     objective="请填写页面目标",
                 ),
             ]
-            repository.update_outline(
+            created = repository.update_outline(
                 selected,
                 target_slides=len(pages),
                 pages=pages,
+            )
+            queue_version_selection(
+                st.session_state, project.id, created.version
             )
             st.rerun()
 
@@ -395,9 +438,14 @@ def _render_outline(project, projects, repository):
             "恢复为新草稿",
             key=f"m2_restore_{project.id}_{selected.version}",
         ):
-            repository.restore_outline(project.id, selected.version)
+            created = repository.restore_outline(project.id, selected.version)
+            queue_version_selection(
+                st.session_state, project.id, created.version
+            )
             _set_project_state(projects, project.id, "OUTLINE_REVIEW")
             st.rerun()
+
+    _render_rework(project, projects, repository, selected)
 
     approved = [item for item in outlines if item.status == "APPROVED"]
     if approved:
@@ -405,6 +453,99 @@ def _render_outline(project, projects, repository):
             project.id, approved[-1].version
         )
         st.caption(f"已生成 {len(tasks)} 项联网研究任务。")
+
+
+def _render_rework(project, projects, repository, selected):
+    st.markdown("#### AI 返工")
+    mode = st.radio(
+        "返工范围",
+        ["global", "local"],
+        format_func={"global": "全局返工", "local": "局部返工"}.get,
+        horizontal=True,
+        key=f"m2_rework_mode_{project.id}_{selected.version}",
+    )
+    page_labels = {
+        page.id: f"第 {page.order} 页 · {page.title}"
+        for page in selected.pages
+    }
+    selected_pages = []
+    if mode == "local":
+        selected_pages = st.multiselect(
+            "选择需要修改的页面",
+            list(page_labels),
+            format_func=page_labels.get,
+            key=f"m2_rework_pages_{project.id}_{selected.version}",
+        )
+    feedback = st.text_area(
+        "修改意见",
+        key=f"m2_rework_feedback_{project.id}_{selected.version}",
+        max_chars=2_000,
+    )
+    impact_key = f"m2_rework_impact_{project.id}"
+    if st.button(
+        "分析影响范围",
+        key=f"m2_analyze_rework_{project.id}_{selected.version}",
+    ):
+        if not st.session_state.api_key:
+            st.warning("请先在侧边栏输入 API Key。")
+        elif not feedback.strip():
+            st.warning("请填写修改意见。")
+        elif mode == "local" and not selected_pages:
+            st.warning("局部返工至少选择一页。")
+        else:
+            request = ReworkRequest(
+                mode=mode,
+                feedback=feedback.strip(),
+                selected_page_ids=selected_pages,
+            )
+            impact = analyze_rework(
+                selected,
+                request,
+                _provider(),
+                st.session_state.api_key,
+            )
+            st.session_state[impact_key] = {
+                "source_version": selected.version,
+                "impact": impact.model_dump(mode="json"),
+            }
+            st.rerun()
+
+    preview = st.session_state.get(impact_key)
+    if not preview or preview["source_version"] != selected.version:
+        return
+    impact = ReworkImpact.model_validate(preview["impact"])
+    st.caption("预计影响页面：")
+    for page_id in impact.impacted_page_ids:
+        st.write(f"- {page_labels[page_id]}：{impact.reasons[page_id]}")
+    if st.button(
+        "确认并生成新版本",
+        key=f"m2_confirm_rework_{project.id}_{selected.version}",
+        type="primary",
+    ):
+        draft = apply_rework(
+            selected,
+            repository.get_brief(project.id),
+            repository.list_chunks(project.id),
+            impact,
+            _provider(),
+            st.session_state.api_key,
+        )
+        created = repository.commit_rework(
+            selected,
+            draft,
+            impact,
+            repository.get_brief(project.id),
+        )
+        st.session_state.pop(impact_key, None)
+        queue_version_selection(st.session_state, project.id, created.version)
+        _set_project_state(projects, project.id, "OUTLINE_REVIEW")
+        st.rerun()
+    if st.button(
+        "取消返工",
+        key=f"m2_cancel_rework_{project.id}_{selected.version}",
+    ):
+        st.session_state.pop(impact_key, None)
+        st.rerun()
 
 
 def render_m2_workspace(
@@ -418,6 +559,8 @@ def render_m2_workspace(
         _render_interview(project, projects, repository)
         _render_outline(project, projects, repository)
     except StructuredOutputError as exc:
+        st.error(str(exc))
+    except InvalidRework as exc:
         st.error(str(exc))
     except sqlite3.Error:
         st.error("本地数据保存失败，请重试。")
