@@ -19,6 +19,7 @@ from pptmaker.projects.portability import (
 )
 from pptmaker.providers import PRESETS, OpenAICompatibleProvider, ProviderConfig
 from pptmaker.ui.state import initialize_session_state
+from pptmaker.ui.m2_workspace import render_m2_workspace
 from pptmaker.workflow import reconcile_interrupted_projects
 
 
@@ -186,6 +187,8 @@ def _project_workspace(repository: ProjectRepository) -> None:
             on_click=_delete_project,
             args=(repository, project.id),
         )
+        st.divider()
+        render_m2_workspace(project, repository)
 
 
 def main() -> None:
