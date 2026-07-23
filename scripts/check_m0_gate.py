@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from pptmaker.m0.contracts import ProbeResult
+from pptmaker.m0.evidence import POLICIES, ProbePolicy, source_fingerprint
 
 REQUIRED = (
     "pptx-baseline",
@@ -12,9 +14,16 @@ REQUIRED = (
 )
 
 
-def check_gate(root: Path, required: tuple[str, ...] = REQUIRED) -> list[str]:
+def check_gate(
+    root: Path,
+    required: tuple[str, ...] = REQUIRED,
+    *,
+    policies: dict[str, ProbePolicy] | None = None,
+) -> list[str]:
     failures: list[str] = []
-    for name in required:
+    active_policies = policies
+    names = tuple(active_policies) if active_policies is not None else required
+    for name in names:
         path = root / "artifacts" / "m0" / f"{name}.json"
         if not path.exists():
             failures.append(f"{name}: missing")
@@ -29,11 +38,62 @@ def check_gate(root: Path, required: tuple[str, ...] = REQUIRED) -> list[str]:
             failures.append(f"{name}: evidence name mismatch")
         elif status != "pass":
             failures.append(f"{name}: {status or 'missing status'}")
+        elif active_policies is not None:
+            policy = active_policies[name]
+            try:
+                result = ProbeResult.model_validate(payload)
+            except Exception as exc:
+                failures.append(f"{name}: invalid schema ({type(exc).__name__})")
+                continue
+            if result.schema_version != 2:
+                failures.append(f"{name}: legacy schema")
+                continue
+            if result.source_fingerprint != source_fingerprint(
+                root, policy.source_paths
+            ):
+                failures.append(f"{name}: stale source fingerprint")
+                continue
+            python_version = result.environment.get("python", "")
+            if not python_version.startswith(("3.10.", "3.11.", "3.12.")):
+                failures.append(f"{name}: unsupported evidence environment")
+                continue
+            failed_metric = next(
+                (
+                    metric
+                    for metric, check in policy.metric_checks.items()
+                    if metric not in result.metrics
+                    or not check(result.metrics[metric])
+                ),
+                None,
+            )
+            if failed_metric:
+                failures.append(f"{name}: metric {failed_metric} failed")
+                continue
+            if policy.require_evidence:
+                if not result.evidence:
+                    failures.append(f"{name}: evidence missing")
+                    continue
+                root_resolved = root.resolve()
+                invalid_evidence = False
+                for value in result.evidence:
+                    evidence = Path(value)
+                    if not evidence.is_absolute():
+                        evidence = root / evidence
+                    try:
+                        evidence.resolve().relative_to(root_resolved)
+                    except ValueError:
+                        invalid_evidence = True
+                        break
+                    if not evidence.exists():
+                        invalid_evidence = True
+                        break
+                if invalid_evidence:
+                    failures.append(f"{name}: evidence path invalid")
     return failures
 
 
 def main() -> int:
-    errors = check_gate(Path.cwd())
+    errors = check_gate(Path.cwd(), policies=POLICIES)
     if errors:
         for error in errors:
             print(error)

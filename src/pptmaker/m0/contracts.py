@@ -11,6 +11,10 @@ class ProbeStatus(str, Enum):
 
 
 class ProbeResult(BaseModel):
+    schema_version: int = 1
+    generated_at: str | None = None
+    source_fingerprint: str | None = None
+    environment: dict[str, str] = Field(default_factory=dict)
     name: str
     status: ProbeStatus
     metrics: dict[str, float | int | str | bool] = Field(default_factory=dict)

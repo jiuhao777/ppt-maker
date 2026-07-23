@@ -3,6 +3,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
@@ -148,21 +149,35 @@ def _online_requester(client: OpenAI) -> Requester:
 
 def run_online_probe(iterations: int = 20) -> ProbeResult:
     key = os.environ["DEEPSEEK_API_KEY"]
+    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
     client = OpenAI(
         api_key=key,
-        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        base_url=base_url,
     )
-    return run_structured_probe(_online_requester(client), iterations=iterations)
+    result = run_structured_probe(_online_requester(client), iterations=iterations)
+    return result.model_copy(
+        update={
+            "details": {
+                **result.details,
+                "model": model,
+                "base_url_host": urlsplit(base_url).hostname or "",
+            }
+        }
+    )
 
 
 def main(root: Path | None = None) -> Path:
     from pptmaker.m0.artifacts import execute_probe
+    from pptmaker.m0.evidence import POLICIES
 
     repository_root = root or Path.cwd()
     return execute_probe(
         "deepseek-structured-output",
         run_online_probe,
         repository_root,
+        source_paths=POLICIES["deepseek-structured-output"].source_paths,
+        source_root=Path.cwd(),
     )
 
 
