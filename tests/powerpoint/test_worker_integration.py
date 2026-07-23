@@ -120,3 +120,18 @@ def test_control_channel_heartbeat_advances(tmp_path: Path):
 
     assert second["heartbeat"] > first["heartbeat"]
     assert result["response"].status == "success", result["response"].error
+
+
+@pytest.mark.office
+def test_completed_request_replays_without_launching_powerpoint(tmp_path: Path):
+    request = _request(tmp_path, "replay-probe")
+    first = render_with_timeout(request)
+    assert first.status == "success", first.error
+    assert _powerpoint_pids() == set()
+
+    second = render_with_timeout(request)
+
+    assert second.status == "success"
+    assert second.slide_images == first.slide_images
+    assert second.details["idempotent_replay"] is True
+    assert _powerpoint_pids() == set()

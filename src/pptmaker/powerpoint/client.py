@@ -10,6 +10,11 @@ from typing import Protocol
 import psutil
 
 from pptmaker.powerpoint.protocol import RenderRequest, RenderResponse
+from pptmaker.powerpoint.idempotency import (
+    IdempotencyConflict,
+    IdempotencyJournal,
+    request_fingerprint,
+)
 
 
 class ManagedProcess(Protocol):
@@ -73,23 +78,74 @@ def _render_with_timeout_unlocked(request: RenderRequest) -> RenderResponse:
             status="failed",
             elapsed_seconds=time.perf_counter() - started,
             error="worker hard timeout",
+            details={"cleanup_attempted": True},
         )
     if process.returncode != 0:
-        return RenderResponse(
+        response = RenderResponse(
             status="failed",
             elapsed_seconds=time.perf_counter() - started,
             error=stderr.strip() or "worker failed",
         )
+        cleaned = terminate_owned_powerpoint(
+            Path(request.control_path), request.run_id
+        )
+        return response.model_copy(
+            update={"details": {"cleanup_attempted": True, "cleanup_succeeded": cleaned}}
+        )
     try:
-        return RenderResponse.model_validate_json(stdout)
+        response = RenderResponse.model_validate_json(stdout)
+        if response.status == "failed":
+            cleaned = terminate_owned_powerpoint(
+                Path(request.control_path), request.run_id
+            )
+            response = response.model_copy(
+                update={
+                    "details": {
+                        **response.details,
+                        "cleanup_attempted": True,
+                        "cleanup_succeeded": cleaned,
+                    }
+                }
+            )
+        return response
     except Exception as exc:
-        return RenderResponse(
+        response = RenderResponse(
             status="failed",
             elapsed_seconds=time.perf_counter() - started,
             error=f"invalid worker response: {type(exc).__name__}: {exc}",
+        )
+        cleaned = terminate_owned_powerpoint(
+            Path(request.control_path), request.run_id
+        )
+        return response.model_copy(
+            update={"details": {"cleanup_attempted": True, "cleanup_succeeded": cleaned}}
         )
 
 
 def render_with_timeout(request: RenderRequest) -> RenderResponse:
     with _RENDER_LOCK:
-        return _render_with_timeout_unlocked(request)
+        journal = IdempotencyJournal(
+            Path(request.output_dir) / ".idempotency"
+        )
+        fingerprint = request_fingerprint(request)
+        try:
+            replay = journal.lookup(request.idempotency_key, fingerprint)
+            if replay is not None:
+                return replay
+            journal.claim(request.idempotency_key, fingerprint)
+        except IdempotencyConflict as exc:
+            return RenderResponse(
+                status="failed",
+                elapsed_seconds=0,
+                error=f"IdempotencyConflict: {exc}",
+            )
+        response = _render_with_timeout_unlocked(request)
+        if response.status == "success":
+            journal.complete(request.idempotency_key, fingerprint, response)
+        else:
+            journal.fail(
+                request.idempotency_key,
+                fingerprint,
+                response.error or "worker failed",
+            )
+        return response

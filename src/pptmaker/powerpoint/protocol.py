@@ -27,3 +27,4 @@ class RenderResponse(BaseModel):
     slide_images: list[str] = Field(default_factory=list)
     elapsed_seconds: float = Field(ge=0)
     error: str | None = None
+    details: dict[str, str | bool] = Field(default_factory=dict)

@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import psutil
 import pythoncom
@@ -35,6 +36,28 @@ def _slide_number(path: Path) -> int:
     return int(match.group(1)) if match else 0
 
 
+class ExportPublisher:
+    def __init__(self, output_dir: Path, run_id: str):
+        self.final = output_dir / run_id
+        # PowerPoint treats a dot in the final path component as a file
+        # extension and may silently export to the stem instead.
+        self.temporary = output_dir / f"_{run_id}_partial_{uuid4().hex}"
+
+    def publish(self, expected_count: int) -> list[Path]:
+        images = sorted(self.temporary.glob("*.PNG"), key=_slide_number)
+        numbers = [_slide_number(path) for path in images]
+        if numbers != list(range(1, expected_count + 1)):
+            raise RuntimeError(
+                f"PowerPoint slide export mismatch: expected {expected_count}, got {numbers}"
+            )
+        if any(not path.is_file() for path in images):
+            raise RuntimeError("PowerPoint export contains a non-file entry")
+        if self.final.exists():
+            raise RuntimeError("final PowerPoint render output already exists")
+        os.replace(self.temporary, self.final)
+        return [self.final / path.name for path in images]
+
+
 def _powerpoint_pids() -> set[int]:
     return {
         process.pid
@@ -55,12 +78,41 @@ def _wait_for_single_new_powerpoint(previous: set[int], timeout: float = 5) -> i
     raise RuntimeError("PowerPoint process did not appear after DispatchEx")
 
 
+def ensure_owned_process_stopped(
+    pid: int | None,
+    created_at: float | None,
+    process_factory=psutil.Process,
+) -> bool:
+    if pid is None or created_at is None:
+        return True
+    try:
+        process = process_factory(pid)
+        if (process.name() or "").lower() != "powerpnt.exe":
+            return False
+        if abs(process.create_time() - created_at) > 0.01:
+            return False
+        try:
+            process.wait(timeout=3)
+            return True
+        except psutil.TimeoutExpired:
+            process.terminate()
+            try:
+                process.wait(timeout=3)
+            except psutil.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+            return True
+    except psutil.NoSuchProcess:
+        return True
+
+
 def render(request: RenderRequest) -> RenderResponse:
     started = time.perf_counter()
     pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
     app = None
     presentation = None
     owned_pid = None
+    owned_created_at = None
     heartbeat_stop = threading.Event()
     heartbeat_thread = None
     try:
@@ -70,15 +122,17 @@ def render(request: RenderRequest) -> RenderResponse:
         if Path(request.cancel_path).exists():
             raise RuntimeError("task cancelled before PowerPoint launch")
 
-        output = Path(request.output_dir) / request.run_id
-        output.mkdir(parents=True, exist_ok=False)
+        publisher = ExportPublisher(Path(request.output_dir), request.run_id)
+        publisher.temporary.parent.mkdir(parents=True, exist_ok=True)
+        publisher.temporary.mkdir(parents=True, exist_ok=False)
         previous_powerpoint_pids = _powerpoint_pids()
         app = win32com.client.DispatchEx("PowerPoint.Application")
         owned_pid = _wait_for_single_new_powerpoint(previous_powerpoint_pids)
+        owned_created_at = psutil.Process(owned_pid).create_time()
         identity = {
             "pid": owned_pid,
             "run_id": request.run_id,
-            "process_created_at": psutil.Process(owned_pid).create_time(),
+            "process_created_at": owned_created_at,
             "heartbeat": time.time(),
         }
         control = Path(request.control_path)
@@ -105,13 +159,11 @@ def render(request: RenderRequest) -> RenderResponse:
             Untitled=False,
             WithWindow=False,
         )
-        presentation.Export(str(output), "PNG")
+        presentation.Export(str(publisher.temporary), "PNG")
         if Path(request.cancel_path).exists():
             raise RuntimeError("task cancelled after PowerPoint export")
 
-        images = sorted(output.glob("*.PNG"), key=_slide_number)
-        if not images:
-            raise RuntimeError("PowerPoint exported no slide images")
+        images = publisher.publish(int(presentation.Slides.Count))
         return RenderResponse(
             status="success",
             owned_pid=owned_pid,
@@ -139,6 +191,7 @@ def render(request: RenderRequest) -> RenderResponse:
                 app.Quit()
         except Exception:
             pass
+        ensure_owned_process_stopped(owned_pid, owned_created_at)
         pythoncom.CoUninitialize()
 
 
