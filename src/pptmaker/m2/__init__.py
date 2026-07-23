@@ -38,6 +38,12 @@ from pptmaker.m2.outlines import (
     reflect_outline,
 )
 from pptmaker.m2.workflow import M2GraphState, build_m2_graph, initial_state
+from pptmaker.m2.rework import (
+    InvalidRework,
+    analyze_rework,
+    apply_rework,
+    validate_rework_scope,
+)
 
 __all__ = [
     "BusinessState",
@@ -76,4 +82,8 @@ __all__ = [
     "M2GraphState",
     "build_m2_graph",
     "initial_state",
+    "InvalidRework",
+    "analyze_rework",
+    "apply_rework",
+    "validate_rework_scope",
 ]
