@@ -1,0 +1,39 @@
+[
+  {
+    "id": "topic-only",
+    "known": {"purpose": "介绍企业 AI 转型"},
+    "expected_research_gaps": 2
+  },
+  {
+    "id": "sufficient-markdown",
+    "known": {
+      "purpose": "季度项目汇报",
+      "scenario": "管理层会议",
+      "audience": "公司管理层",
+      "target_slides": 10,
+      "priorities": "进展、风险与下一步",
+      "style": "简洁专业"
+    },
+    "expected_research_gaps": 1
+  },
+  {
+    "id": "insufficient-with-unknown",
+    "known": {
+      "purpose": "产品介绍",
+      "scenario": "客户交流",
+      "audience": "潜在客户"
+    },
+    "expected_research_gaps": 3
+  },
+  {
+    "id": "mixed-files",
+    "known": {
+      "purpose": "研究成果答辩",
+      "scenario": "学术答辩",
+      "audience": "评审教师",
+      "target_slides": 12,
+      "priorities": "方法、实验与结论"
+    },
+    "expected_research_gaps": 2
+  }
+]
