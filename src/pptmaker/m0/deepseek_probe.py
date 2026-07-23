@@ -63,6 +63,7 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
 
     first_pass = repaired_pass = empty = repair_requests = 0
     error_counts = {"timeout": 0, "rate_limit": 0, "other": 0}
+    error_types: dict[str, int] = {}
     latencies: list[float] = []
     prompt_tokens = completion_tokens = 0
 
@@ -98,6 +99,8 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
                     repaired_pass += 1
         except Exception as exc:
             error_counts[_error_category(exc)] += 1
+            error_name = type(exc).__name__
+            error_types[error_name] = error_types.get(error_name, 0) + 1
         finally:
             latencies.append(time.perf_counter() - started)
 
@@ -124,7 +127,7 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
         limitations=[
             "Results apply to the configured DeepSeek model and endpoint at probe time."
         ],
-        details={"error_counts": error_counts},
+        details={"error_counts": error_counts, "error_types": error_types},
     )
 
 
