@@ -4,6 +4,7 @@ from pptmaker.providers.openai_compatible import (
     provider_for,
 )
 from pptmaker.providers.presets import PRESETS
+from pptmaker.providers.structured import StructuredModel, StructuredOutputError
 
 __all__ = [
     "Capability",
@@ -11,5 +12,7 @@ __all__ = [
     "OpenAICompatibleProvider",
     "PRESETS",
     "ProviderConfig",
+    "StructuredModel",
+    "StructuredOutputError",
     "provider_for",
 ]
