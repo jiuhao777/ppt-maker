@@ -18,6 +18,9 @@ dependencies = [
   "pypdf==6.9.1",
   "reportlab==4.4.10",
   "markitdown[pdf,docx,pptx]==0.1.5",
+  "streamlit==1.59.1",
+  "langgraph==1.2.9",
+  "langgraph-checkpoint-sqlite==3.1.0",
 ]
 
 [project.optional-dependencies]
