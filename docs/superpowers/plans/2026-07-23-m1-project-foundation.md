@@ -144,6 +144,15 @@ exact project ID.
 - [ ] **Step 4: Write failing portability limit tests**
 
 ```python
+def test_export_import_preserves_project_semantics(project, repository):
+    imported = import_project(export_project(project), repository)
+    assert imported.id != project.id
+    assert imported.name == project.name
+    assert imported.business_state == project.business_state
+    assert imported.execution_state == project.execution_state
+    assert imported.last_provider_preset == project.last_provider_preset
+
+
 def test_export_never_contains_provider_credentials(project):
     encoded = export_project(project)
     assert b"api_key" not in encoded.lower()
@@ -212,6 +221,25 @@ def test_provider_error_never_returns_sdk_text():
     assert result.category == "unknown"
     assert "TEST_KEY" not in result.message
     assert "https://" not in result.message
+
+
+def response(status):
+    request = httpx.Request("POST", "https://test.invalid")
+    return httpx.Response(status, request=request)
+
+
+@pytest.mark.parametrize(("exception", "category"), [
+    (AuthenticationError("private", response=response(401), body=None), "authentication"),
+    (RateLimitError("private", response=response(429), body=None), "rate_limit"),
+    (APITimeoutError(request=httpx.Request("POST", "https://test.invalid")), "timeout"),
+    (APIConnectionError(request=httpx.Request("POST", "https://test.invalid")), "network"),
+    (BadRequestError("private", response=response(400), body=None), "unsupported"),
+    (RuntimeError("private"), "unknown"),
+])
+def test_provider_errors_use_fixed_safe_categories(exception, category):
+    result = safe_provider_error(exception)
+    assert result.category == category
+    assert "private" not in result.message
 ```
 
 - [ ] **Step 2: Run the tests**
@@ -338,6 +366,7 @@ git commit -m "feat: probe model provider capabilities"
 - Create: `src/pptmaker/workflow/recovery.py`
 - Create: `src/pptmaker/workflow/__init__.py`
 - Test: `tests/workflow/test_checkpoint_recovery.py`
+- Test: `tests/workflow/interrupted_worker.py`
 
 **Interfaces:**
 - Produces: `build_foundation_graph(checkpointer)`
@@ -356,8 +385,10 @@ def test_graph_resumes_checkpoint_after_reopen(tmp_path):
 
 
 def test_running_project_becomes_recoverable_after_process_death(repository):
-    project = repository.create(ProjectCreate(name="Demo"))
-    repository.set_execution_state(project.id, "RUNNING")
+    process = start_interrupted_worker(repository.path)
+    project = wait_until_worker_reports_running(repository)
+    process.terminate()
+    process.wait(timeout=5)
     assert reconcile_interrupted_projects(repository) == 1
     assert repository.get(project.id).execution_state == "FAILED_RECOVERABLE"
 ```
@@ -379,6 +410,11 @@ config, clients, environment variables, or API Keys in graph state.
 In one SQLite transaction update every project whose execution state is
 `RUNNING` to `FAILED_RECOVERABLE`. Return the affected count. Do not change
 `WAITING_FOR_USER`, `PAUSED`, or terminal states.
+
+`interrupted_worker.py` creates one project, marks it `RUNNING`, prints only its
+project ID, and blocks. The test terminates that child process before reopening
+the repository and calling reconciliation. It must not pass by directly
+simulating `RUNNING` in the parent process.
 
 - [ ] **Step 5: Run workflow and project tests**
 
