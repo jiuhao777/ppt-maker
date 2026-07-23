@@ -56,4 +56,4 @@ PPTX 和导出 PNG 后记录结论。
 
 ## 人工复核
 
-待用户确认：打开 `artifacts/m0/baseline.pptx`，核对 2 页内容和 PowerPoint 导出 PNG 是否视觉正常。
+2026-07-23，用户已打开 `artifacts/m0/baseline.pptx` 并确认 2 页显示正常。M0 正式验收通过。

@@ -2010,7 +2010,7 @@ conda run -n AI python scripts/check_m0_gate.py
 
 Expected: all offline and Office tests PASS; gate checker exits 0. Online/provider/model experiments may be marked BLOCKED only if they are explicitly non-mandatory in the report. DeepSeek structured-output is mandatory before M1.
 
-- [ ] **Step 6: Human M0 review**
+- [x] **Step 6: Human M0 review**
 
 Open `artifacts/m0/baseline.pptx`, inspect exported PNGs, and review the parser, vision, search, security, and timing reports. Record the user's decision and corrections in `docs/evaluations/m0-gate-report.md`.
 
