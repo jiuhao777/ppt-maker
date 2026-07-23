@@ -25,6 +25,12 @@ from pptmaker.m2.interview import (
     plan_next_question,
     rank_gaps,
 )
+from pptmaker.m2.outlines import (
+    build_research_tasks,
+    diff_outlines,
+    generate_outline,
+    reflect_outline,
+)
 
 __all__ = [
     "BusinessState",
@@ -50,4 +56,8 @@ __all__ = [
     "extract_requirements",
     "plan_next_question",
     "rank_gaps",
+    "build_research_tasks",
+    "diff_outlines",
+    "generate_outline",
+    "reflect_outline",
 ]
