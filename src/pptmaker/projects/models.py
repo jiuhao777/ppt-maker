@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pptmaker.research.contracts import WebPolicy
+
 
 ExecutionState = Literal[
     "IDLE",
@@ -33,6 +35,7 @@ class ProjectCreate(BaseModel):
     business_state: ProjectBusinessState = "DRAFT"
     execution_state: ExecutionState = "IDLE"
     execution_lease_expires_at: datetime | None = None
+    web_policy: WebPolicy = "AUTO"
 
 
 class ProjectUpdate(BaseModel):
@@ -41,6 +44,7 @@ class ProjectUpdate(BaseModel):
     business_state: ProjectBusinessState | None = None
     execution_state: ExecutionState | None = None
     execution_lease_expires_at: datetime | None = None
+    web_policy: WebPolicy | None = None
 
 
 class Project(BaseModel):
@@ -54,6 +58,7 @@ class Project(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+    web_policy: WebPolicy = "AUTO"
 
 
 class ProjectExport(BaseModel):
@@ -67,3 +72,4 @@ class ProjectExport(BaseModel):
     last_provider_preset: str | None = Field(default=None, max_length=100)
     created_at: datetime
     updated_at: datetime
+    web_policy: WebPolicy = "AUTO"

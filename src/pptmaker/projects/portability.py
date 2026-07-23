@@ -22,6 +22,7 @@ def export_project(project: Project) -> bytes:
         last_provider_preset=project.last_provider_preset,
         created_at=project.created_at,
         updated_at=project.updated_at,
+        web_policy=project.web_policy,
     )
     return exported.model_dump_json().encode("utf-8")
 
@@ -63,6 +64,7 @@ def import_project(data: bytes, repository: ProjectRepository) -> Project:
                 else exported.execution_state
             ),
             last_provider_preset=exported.last_provider_preset,
+            web_policy=exported.web_policy,
         ),
         created_at=exported.created_at,
         updated_at=exported.updated_at,

@@ -62,6 +62,16 @@ def test_export_import_preserves_m2_business_state(tmp_path):
     assert imported.business_state == "WAITING_FOR_USER"
 
 
+def test_export_import_preserves_web_policy(tmp_path):
+    source = ProjectRepository(tmp_path / "source.db")
+    target = ProjectRepository(tmp_path / "target.db")
+    project = source.create(ProjectCreate(name="Web", web_policy="NEVER"))
+
+    imported = import_project(export_project(project), target)
+
+    assert imported.web_policy == "NEVER"
+
+
 @pytest.mark.parametrize(
     "payload",
     [

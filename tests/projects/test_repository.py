@@ -106,3 +106,18 @@ def test_execution_lease_can_be_cleared(tmp_path):
     )
 
     assert completed.execution_lease_expires_at is None
+
+
+def test_project_web_policy_round_trips(tmp_path):
+    repository = ProjectRepository(tmp_path / "projects.db")
+    project = repository.create(ProjectCreate(name="Fresh"))
+
+    assert project.web_policy == "AUTO"
+    updated = repository.update(
+        project.id,
+        ProjectUpdate(web_policy="NEVER"),
+        expected_version=project.version,
+    )
+
+    assert updated.web_policy == "NEVER"
+    assert repository.get(project.id).web_policy == "NEVER"
