@@ -11,6 +11,10 @@ class VersionConflict(RuntimeError):
     pass
 
 
+class DuplicateProjectName(ValueError):
+    pass
+
+
 class ProjectRepository:
     def __init__(self, path: Path):
         self.path = Path(path)
@@ -50,6 +54,10 @@ class ProjectRepository:
         payload = values.model_dump()
         payload["schema_version"] = 1
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute("SELECT payload FROM projects").fetchall()
+            if any(json.loads(row[0])["name"] == values.name for row in existing):
+                raise DuplicateProjectName(values.name)
             connection.execute(
                 "INSERT INTO projects VALUES (?, ?, ?, ?, ?)",
                 (project_id, json.dumps(payload), 1, now, now),

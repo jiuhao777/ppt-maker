@@ -1,6 +1,7 @@
 import pytest
 
 from pptmaker.projects import (
+    DuplicateProjectName,
     ProjectCreate,
     ProjectRepository,
     ProjectUpdate,
@@ -40,3 +41,15 @@ def test_stale_version_cannot_overwrite_newer_project(tmp_path):
             ProjectUpdate(name="Old"),
             expected_version=project.version,
         )
+
+
+def test_exact_duplicate_name_is_rejected_but_case_difference_is_allowed(
+    tmp_path,
+):
+    repository = ProjectRepository(tmp_path / "projects.db")
+    repository.create(ProjectCreate(name="Demo"))
+
+    with pytest.raises(DuplicateProjectName):
+        repository.create(ProjectCreate(name="Demo"))
+
+    assert repository.create(ProjectCreate(name="demo")).name == "demo"

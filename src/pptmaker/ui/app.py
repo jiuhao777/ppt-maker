@@ -2,7 +2,12 @@ import streamlit as st
 
 from pptmaker.app_paths import database_path
 from pptmaker.logging_config import configure_logging
-from pptmaker.projects import ProjectCreate, ProjectRepository, ProjectUpdate
+from pptmaker.projects import (
+    DuplicateProjectName,
+    ProjectCreate,
+    ProjectRepository,
+    ProjectUpdate,
+)
 from pptmaker.projects.portability import (
     InvalidProjectImport,
     export_project,
@@ -71,9 +76,12 @@ def _create_and_import(repository: ProjectRepository) -> None:
             if not name.strip():
                 st.warning("请输入项目名称。")
             else:
-                project = repository.create(ProjectCreate(name=name.strip()))
-                st.session_state.selected_project_id = project.id
-                st.rerun()
+                try:
+                    project = repository.create(ProjectCreate(name=name.strip()))
+                    st.session_state.selected_project_id = project.id
+                    st.rerun()
+                except DuplicateProjectName:
+                    st.warning("项目名称已存在，请使用其他名称。")
 
     with st.container(border=True):
         st.subheader("导入项目")
@@ -85,6 +93,8 @@ def _create_and_import(repository: ProjectRepository) -> None:
                 st.rerun()
             except InvalidProjectImport:
                 st.error("项目文件无效或超过安全限制。")
+            except DuplicateProjectName:
+                st.warning("同名项目已存在，无法导入。")
 
 
 def _delete_project(repository: ProjectRepository, project_id: str) -> None:

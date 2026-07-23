@@ -11,12 +11,13 @@ from pptmaker.projects.portability import (
 
 
 def test_export_import_preserves_project_semantics(tmp_path):
-    repository = ProjectRepository(tmp_path / "projects.db")
-    project = repository.create(
+    source = ProjectRepository(tmp_path / "source.db")
+    target = ProjectRepository(tmp_path / "target.db")
+    project = source.create(
         ProjectCreate(name="Demo", last_provider_preset="deepseek")
     )
 
-    imported = import_project(export_project(project), repository)
+    imported = import_project(export_project(project), target)
 
     assert imported.id != project.id
     assert imported.name == project.name

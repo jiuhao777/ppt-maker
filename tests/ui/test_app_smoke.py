@@ -53,3 +53,17 @@ def test_confirmed_delete_clears_selected_project(monkeypatch, tmp_path):
 
     assert not app.exception
     assert not any(item.label == "当前项目" for item in app.selectbox)
+
+
+def test_duplicate_project_name_shows_warning(monkeypatch, tmp_path):
+    monkeypatch.setenv("PPTMAKER_DATA_DIR", str(tmp_path))
+    app = AppTest.from_file("src/pptmaker/ui/app.py").run(timeout=10)
+    for _ in range(2):
+        next(
+            item for item in app.text_input if item.label == "项目名称"
+        ).set_value("Demo")
+        next(item for item in app.button if item.label == "创建项目").click()
+        app.run(timeout=10)
+
+    assert not app.exception
+    assert any("已存在" in item.value for item in app.warning)
