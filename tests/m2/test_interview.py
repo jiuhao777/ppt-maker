@@ -3,6 +3,7 @@ from pptmaker.m2.interview import (
     extract_requirements,
     plan_next_question,
     rank_gaps,
+    remaining_question_count,
 )
 from pptmaker.m2.models import MaterialChunk, RequirementBrief, RequirementField
 
@@ -112,3 +113,34 @@ def test_extraction_cannot_overwrite_user_confirmed_field():
     assert merged.audience.value == "Executives"
     assert merged.audience.source == "user"
     assert model.calls == 1
+
+
+def test_pitch_and_thesis_receive_different_special_questions():
+    pitch = complete_brief(task_type="pitch", special_requirements={})
+    thesis = complete_brief(task_type="thesis", special_requirements={})
+
+    assert plan_next_question(pitch).field == "special:funding_goal"
+    assert plan_next_question(thesis).field == "special:research_method"
+
+
+def test_question_count_never_exceeds_eight():
+    brief = RequirementBrief(project_id="p1", task_type="pitch")
+    fields = []
+    while question := plan_next_question(brief):
+        fields.append(question.field)
+        brief = accept_unknown(brief, question.field, "待验证")
+
+    assert 1 <= len(fields) <= 8
+    assert len(fields) == len(set(fields))
+
+
+def test_question_is_simple_and_has_choices():
+    question = plan_next_question(
+        complete_brief(audience=RequirementField())
+    )
+
+    assert len(question.text) <= 40
+    assert 2 <= len(question.options) <= 4
+    assert remaining_question_count(
+        complete_brief(audience=RequirementField())
+    ) >= 1

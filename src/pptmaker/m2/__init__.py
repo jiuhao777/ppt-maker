@@ -29,6 +29,7 @@ from pptmaker.m2.interview import (
     extract_requirements,
     plan_next_question,
     rank_gaps,
+    remaining_question_count,
 )
 from pptmaker.m2.outlines import (
     build_research_tasks,
@@ -67,6 +68,7 @@ __all__ = [
     "extract_requirements",
     "plan_next_question",
     "rank_gaps",
+    "remaining_question_count",
     "build_research_tasks",
     "diff_outlines",
     "generate_outline",
