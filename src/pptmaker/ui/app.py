@@ -87,6 +87,11 @@ def _create_and_import(repository: ProjectRepository) -> None:
                 st.error("项目文件无效或超过安全限制。")
 
 
+def _delete_project(repository: ProjectRepository, project_id: str) -> None:
+    repository.delete(project_id)
+    st.session_state.selected_project_id = None
+
+
 def _project_workspace(repository: ProjectRepository) -> None:
     projects = repository.list()
     if not projects:
@@ -144,15 +149,14 @@ def _project_workspace(repository: ProjectRepository) -> None:
         confirmed = st.checkbox(
             "确认删除此项目", key=f"confirm_delete_{project.id}"
         )
-        if st.button(
+        st.button(
             "删除项目",
             icon=":material/delete:",
             disabled=not confirmed,
             type="secondary",
-        ):
-            repository.delete(project.id)
-            st.session_state.selected_project_id = None
-            st.rerun()
+            on_click=_delete_project,
+            args=(repository, project.id),
+        )
 
 
 def main() -> None:
