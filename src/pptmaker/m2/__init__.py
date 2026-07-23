@@ -19,6 +19,12 @@ from pptmaker.m2.models import (
     RequirementField,
 )
 from pptmaker.m2.repository import M2Repository
+from pptmaker.m2.interview import (
+    accept_unknown,
+    extract_requirements,
+    plan_next_question,
+    rank_gaps,
+)
 
 __all__ = [
     "BusinessState",
@@ -40,4 +46,8 @@ __all__ = [
     "ResearchTask",
     "RequirementBrief",
     "RequirementField",
+    "accept_unknown",
+    "extract_requirements",
+    "plan_next_question",
+    "rank_gaps",
 ]
