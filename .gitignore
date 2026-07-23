@@ -1,6 +1,6 @@
 # Local models and user data
-models/
-projects/
+/models/
+/projects/
 artifacts/
 !docs/evidence/
 !docs/evidence/**
