@@ -18,6 +18,7 @@ from pptmaker.m2.models import (
     RequirementBrief,
     RequirementField,
 )
+from pptmaker.m2.repository import M2Repository
 
 __all__ = [
     "BusinessState",
@@ -29,6 +30,7 @@ __all__ = [
     "MaterialChunk",
     "MaterialIngestResult",
     "MaterialStatus",
+    "M2Repository",
     "OutlineDiff",
     "OutlineGap",
     "OutlinePage",

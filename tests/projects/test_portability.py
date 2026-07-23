@@ -50,6 +50,18 @@ def test_imported_running_project_becomes_recoverable(tmp_path):
     assert imported.execution_state == "FAILED_RECOVERABLE"
 
 
+def test_export_import_preserves_m2_business_state(tmp_path):
+    source = ProjectRepository(tmp_path / "source.db")
+    target = ProjectRepository(tmp_path / "target.db")
+    project = source.create(
+        ProjectCreate(name="Interview", business_state="WAITING_FOR_USER")
+    )
+
+    imported = import_project(export_project(project), target)
+
+    assert imported.business_state == "WAITING_FOR_USER"
+
+
 @pytest.mark.parametrize(
     "payload",
     [
