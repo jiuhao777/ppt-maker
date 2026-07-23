@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -57,6 +58,11 @@ def _error_category(exc: Exception) -> str:
     return "other"
 
 
+def _safe_error_signature(exc: Exception) -> str:
+    message = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-<redacted>", str(exc))
+    return f"{type(exc).__name__}: {message[:500]}"
+
+
 def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeResult:
     if iterations < 1:
         raise ValueError("iterations must be positive")
@@ -64,6 +70,7 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
     first_pass = repaired_pass = empty = repair_requests = 0
     error_counts = {"timeout": 0, "rate_limit": 0, "other": 0}
     error_types: dict[str, int] = {}
+    error_signatures: dict[str, int] = {}
     latencies: list[float] = []
     prompt_tokens = completion_tokens = 0
 
@@ -101,6 +108,8 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
             error_counts[_error_category(exc)] += 1
             error_name = type(exc).__name__
             error_types[error_name] = error_types.get(error_name, 0) + 1
+            signature = _safe_error_signature(exc)
+            error_signatures[signature] = error_signatures.get(signature, 0) + 1
         finally:
             latencies.append(time.perf_counter() - started)
 
@@ -127,7 +136,11 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
         limitations=[
             "Results apply to the configured DeepSeek model and endpoint at probe time."
         ],
-        details={"error_counts": error_counts, "error_types": error_types},
+        details={
+            "error_counts": error_counts,
+            "error_types": error_types,
+            "error_signatures": error_signatures,
+        },
     )
 
 

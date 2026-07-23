@@ -5,10 +5,20 @@ from pydantic import ValidationError
 
 from pptmaker.m0 import deepseek_probe
 from pptmaker.m0.contracts import ProbeResult, ProbeStatus
-from pptmaker.m0.deepseek_probe import parse_outline, run_structured_probe
+from pptmaker.m0.deepseek_probe import (
+    _safe_error_signature,
+    parse_outline,
+    run_structured_probe,
+)
 
 
 VALID = '{"title":"项目汇报","slides":["背景","方案","结果"]}'
+
+
+def test_error_signature_redacts_api_keys():
+    assert "secret" not in _safe_error_signature(
+        ValueError("invalid sk-secret")
+    )
 
 
 def test_parses_valid_outline():
