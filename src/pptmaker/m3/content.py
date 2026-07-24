@@ -35,6 +35,10 @@ def plan_content(
         "引用事实时在 source_references 中填写 source_title。"
         "本版本不生成 key_number 和 key_number_label，请留空。"
         "注意页面信息密度与视觉风格匹配。"
+        "为每页选择合适的表达结构，至少产生以下变化："
+        "纯文字页、要点列表页、配图建议页、数据陈述页各占一定比例。"
+        "image_suggestion 在内容适合配图时才填写（如趋势、对比、架构），"
+        "否则留空。bullet_points 适合并列信息时使用。"
     )
 
     try:

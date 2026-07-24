@@ -105,30 +105,36 @@ def _content(slide: SlideContent, font, design) -> list:
                         height=0.02, fill_color=design.palette.accent))
 
     body_y = MARGIN_Y + TITLE_H + GAP + 0.1
+    has_image = bool(slide.image_suggestion)
+
+    if has_image:
+        # two-column: text left, placeholder right
+        text_w = CANVAS_W - 2 * MARGIN_X - 4.0
+        img_x = CANVAS_W - MARGIN_X - 3.5
+        el.append(ImagePlaceholder(type="image_placeholder", x=img_x, y=body_y, width=3.5, height=3.0,
+                                   description=slide.image_suggestion or ""))
+    else:
+        text_w = CANVAS_W - 2 * MARGIN_X
+
     space_h = CANVAS_H - body_y - MARGIN_Y
 
     # body text
     if slide.body_paragraphs:
-        body = " ".join(slide.body_paragraphs)
-        el.append(_text(body, MARGIN_X, body_y, CANVAS_W - 2 * MARGIN_X, min(space_h * 0.55, 3.0),
+        body = "\n\n".join(slide.body_paragraphs)
+        rows = min(len(slide.body_paragraphs), 8)
+        body_h = min(rows * 0.45, space_h * 0.6)
+        el.append(_text(body, MARGIN_X, body_y, text_w, body_h,
                         font.body_size, font.body_zh))
 
     # bullet points
     if slide.bullet_points:
-        bullet_y = body_y + min(space_h * 0.55, 3.0) + GAP
+        bullet_y = body_y + (min(len(slide.body_paragraphs or [""]), 8) * 0.45 if slide.body_paragraphs else 0) + GAP
         el.append(BulletElement(type="bullet", items=slide.bullet_points,
                                 x=MARGIN_X + 0.2, y=bullet_y,
-                                width=CANVAS_W - 2 * MARGIN_X - 0.2,
+                                width=text_w - 0.2,
                                 height=space_h - (bullet_y - body_y),
                                 font_size=font.body_size, font_name=font.body_zh,
                                 color=design.palette.text_primary))
-
-    # image placeholder
-    if slide.image_suggestion:
-        el.append(ImagePlaceholder(type="image_placeholder", x=CANVAS_W - MARGIN_X - 4.0,
-                                   y=body_y, width=3.5, height=2.5,
-                                   description=slide.image_suggestion))
-
     return el
 
 

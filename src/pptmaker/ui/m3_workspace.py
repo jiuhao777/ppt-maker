@@ -56,6 +56,10 @@ def render_m3_generation(project, projects: ProjectRepository) -> None:
             return
 
         try:
+            # Clear old cache before regenerating
+            st.session_state.pop(cache_key, None)
+            st.session_state.pop(thumb_key, None)
+
             with st.spinner("设计风格中..."):
                 design = plan_design(brief, style, _provider(), st.session_state.api_key)
 
@@ -88,6 +92,8 @@ def render_m3_generation(project, projects: ProjectRepository) -> None:
 
         except StructuredOutputError:
             st.error("模型生成失败，请重试。")
+        except Exception as exc:
+            st.error(f"生成失败：{exc}")
 
     # Show cached results
     if cache_key in st.session_state:
