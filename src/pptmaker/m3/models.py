@@ -28,6 +28,7 @@ class FontSet(BaseModel):
 
 class SlideContent(BaseModel):
     page_id: str = Field(min_length=1)
+    page_type: str = Field(default="content")
     title: str = Field(min_length=1, max_length=200)
     subtitle: str | None = Field(default=None, max_length=200)
     body_paragraphs: list[str] = Field(default_factory=list, max_length=20)
