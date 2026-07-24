@@ -1,5 +1,6 @@
 import sqlite3
 from collections.abc import MutableMapping
+from dataclasses import dataclass
 
 import streamlit as st
 from langgraph.types import Command
@@ -7,7 +8,7 @@ from langgraph.types import Command
 from pptmaker.app_paths import database_path
 from pptmaker.m2.interview import (
     accept_unknown,
-    extract_requirements,
+    extract_requirements_with_freshness,
     plan_next_question,
     remaining_question_count,
 )
@@ -31,6 +32,9 @@ from pptmaker.m2.workflow import build_m2_graph, initial_state
 from pptmaker.projects import ProjectRepository, ProjectUpdate
 from pptmaker.providers import ProviderConfig, StructuredModel
 from pptmaker.providers.structured import StructuredOutputError
+from pptmaker.research.bocha import BochaSearch
+from pptmaker.research.repository import ResearchRepository
+from pptmaker.research.service import FreshnessService, SearchKeyRequired
 from pptmaker.workflow.foundation import sqlite_checkpointer
 
 
@@ -42,6 +46,31 @@ ASSUMPTIONS = {
     "priorities": "暂按主题的核心问题与结论优先，后续验证",
     "style": "暂按简洁专业风格设计，后续验证",
 }
+
+
+@dataclass(frozen=True)
+class WebGenerationBlock:
+    blocked: bool
+    banner: str = ""
+    button_label: str = "分析需求"
+
+
+def web_generation_block(project, state: MutableMapping) -> WebGenerationBlock:
+    if project.web_policy != "ALWAYS":
+        return WebGenerationBlock(False)
+    if not state.get("bocha_api_key"):
+        return WebGenerationBlock(
+            True,
+            "当前项目要求联网，但尚未配置博查 API Key",
+            "请先配置联网搜索",
+        )
+    if not state.get("bocha_connection_verified"):
+        return WebGenerationBlock(
+            True,
+            "当前项目要求联网，请先测试博查搜索连接",
+            "请先测试搜索连接",
+        )
+    return WebGenerationBlock(False)
 
 
 def queue_version_selection(
@@ -127,11 +156,16 @@ class WorkspaceServices:
         )
 
     def generate_outline(self, project_id: str) -> int:
+        facts = ResearchRepository(self.projects.path).list_facts(
+            project_id,
+            active_only=True,
+        )
         generated = generate_outline(
             self.repository.get_brief(project_id),
             self.repository.list_chunks(project_id),
             _provider(),
             self.api_key,
+            facts=facts,
         )
         return self.repository.create_outline(generated).version
 
@@ -169,13 +203,28 @@ def _render_materials(project, projects, repository):
         key=f"m2_description_{project.id}",
         max_chars=20_000,
     )
+    block = web_generation_block(project, st.session_state)
+    if block.blocked:
+        st.warning(block.banner)
+        if st.button(
+            "前往 API 设置",
+            key=f"m2_open_search_settings_{project.id}",
+        ):
+            st.session_state.show_search_settings = True
+            st.rerun()
     uploads = st.file_uploader(
         "上传 Markdown、DOCX、文本 PDF 或 PPTX",
         type=["md", "docx", "pdf", "pptx", "png", "jpg", "jpeg"],
         accept_multiple_files=True,
         key=f"m2_uploads_{project.id}",
     )
-    if st.button("分析需求", key=f"m2_analyze_{project.id}", type="primary"):
+    _render_research_status(project, projects.path)
+    if st.button(
+        block.button_label,
+        key=f"m2_analyze_{project.id}",
+        type="primary",
+        disabled=block.blocked,
+    ):
         if not st.session_state.api_key:
             st.warning("请先在侧边栏输入 API Key。")
             return
@@ -194,7 +243,7 @@ def _render_materials(project, projects, repository):
             turn = ConversationTurn(role="user", content=description.strip())
             repository.add_turn(project.id, turn)
             turns.append(turn)
-        brief = extract_requirements(
+        extraction = extract_requirements_with_freshness(
             project.id,
             chunks,
             turns,
@@ -202,6 +251,15 @@ def _render_materials(project, projects, repository):
             st.session_state.api_key,
             current=repository.get_brief(project.id),
         )
+        research = ResearchRepository(projects.path)
+        FreshnessService(BochaSearch(), research).run(
+            project.id,
+            project.web_policy,
+            extraction,
+            st.session_state.bocha_api_key,
+            freshness=st.session_state.get("search_freshness", "oneYear"),
+        )
+        brief = extraction.brief
         repository.save_brief(brief)
         services = WorkspaceServices(
             project.id, projects, repository, st.session_state.api_key
@@ -209,6 +267,37 @@ def _render_materials(project, projects, repository):
         result = _invoke_graph(project.id, services, initial_state(project.id))
         _set_project_state(projects, project.id, result["business_state"])
         st.rerun()
+
+
+def _render_research_status(project, database):
+    repository = ResearchRepository(database)
+    run = repository.get_latest_run(project.id)
+    if run is None:
+        return
+    if run.status == "NOT_REQUIRED":
+        st.caption(f"未联网：{run.decision.reason}")
+        return
+    if run.status == "SKIPPED_NO_KEY":
+        st.warning("该主题具有时效性，但未配置搜索服务；相关内容待验证。")
+        return
+    if run.status == "FAILED":
+        st.warning("联网核验失败，已保留离线流程；不会编造最新事实。")
+        return
+    st.success(f"已完成联网核验：{run.decision.reason}")
+    for fact in repository.list_facts(project.id, active_only=True):
+        st.markdown(f"[{fact.source_title}]({fact.source_url})")
+        published = (
+            fact.published_at.date().isoformat()
+            if fact.published_at
+            else "发布日期未知"
+        )
+        st.caption(f"{fact.site_name} · {published}")
+        if st.button(
+            "排除此来源",
+            key=f"exclude_fact_{project.id}_{fact.id}",
+        ):
+            repository.exclude_fact(project.id, fact.id)
+            st.rerun()
 
 
 def _render_interview(project, projects, repository):
@@ -503,6 +592,10 @@ def _render_rework(project, projects, repository, selected):
                 request,
                 _provider(),
                 st.session_state.api_key,
+                facts=ResearchRepository(projects.path).list_facts(
+                    project.id,
+                    active_only=True,
+                ),
             )
             st.session_state[impact_key] = {
                 "source_version": selected.version,
@@ -529,6 +622,10 @@ def _render_rework(project, projects, repository, selected):
             impact,
             _provider(),
             st.session_state.api_key,
+            facts=ResearchRepository(projects.path).list_facts(
+                project.id,
+                active_only=True,
+            ),
         )
         created = repository.commit_rework(
             selected,
@@ -558,6 +655,8 @@ def render_m2_workspace(
         st.divider()
         _render_interview(project, projects, repository)
         _render_outline(project, projects, repository)
+        from pptmaker.ui.m3_workspace import render_m3_generation
+        render_m3_generation(project, projects)
     except StructuredOutputError as exc:
         st.error(str(exc))
     except InvalidRework as exc:

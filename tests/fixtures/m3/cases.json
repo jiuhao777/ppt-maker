@@ -1,0 +1,14 @@
+[
+  {
+    "id": "work-report",
+    "pages": [
+      {"title": "封面", "page_type": "cover", "body": ["2026 Q2 工作汇报"]},
+      {"title": "目录", "page_type": "contents", "bullets": ["概述", "成果", "规划"]},
+      {"title": "项目概述", "body": ["本季度完成了三项重点项目的交付"]},
+      {"title": "核心成果", "body": ["用户增长 30%"], "bullets": ["指标1", "指标2"]},
+      {"title": "风险与应对", "body": ["主要风险已识别并制定了应对方案"]},
+      {"title": "下季规划", "bullets": ["计划1", "计划2", "计划3"]},
+      {"title": "总结", "page_type": "ending", "body": ["感谢聆听"]}
+    ]
+  }
+]
