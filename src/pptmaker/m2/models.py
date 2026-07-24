@@ -107,19 +107,23 @@ class OutlinePage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     order: int = Field(ge=1)
     section: str = Field(min_length=1, max_length=200)
-    title: str = Field(min_length=1, max_length=200)
+    title: str = Field(min_length=1, max_length=200)     # 必须是结论式标题(≤30字)
     objective: str = Field(min_length=1, max_length=500)
-    key_points: list[str] = Field(default_factory=list, max_length=10)
+    key_points: list[str] = Field(default_factory=list, max_length=10)  # ≤15字/条
     page_type: str = Field(default="content", max_length=100)
-    layout: str = Field(default="text")  # text|bullets|two_column|big_number|comparison|table|quote
-    image_suggestion: str = Field(default="", max_length=500)
-    icon_suggestion: str = Field(default="", max_length=200)
+    layout: str = Field(default="text")
+    visual_detail: str = Field(default="", max_length=500)  # 排版详细规则(比例/对齐/高亮)
+    image_suggestion: str = Field(default="", max_length=500)  # 配图精确要求
+    logical_bridge: str = Field(default="", max_length=300)   # 与前后页逻辑衔接
+    is_memory_anchor: bool = False   # 是否为记忆锚点
     source_locations: list[str] = Field(default_factory=list, max_length=100)
     gaps: list[OutlineGap] = Field(default_factory=list, max_length=20)
 
 
 class DeckOutlineDraft(BaseModel):
     narrative: str = Field(min_length=1, max_length=2_000)
+    narrative_framework: str = Field(default="", max_length=200)  # SCQA/成果-问题-计划等
+    global_constraints: str = Field(default="", max_length=2_000)  # 全局禁止项/一致性规则
     target_slides: int = Field(ge=1, le=100)
     pages: list[OutlinePage] = Field(min_length=1, max_length=100)
 

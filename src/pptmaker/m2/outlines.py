@@ -46,6 +46,12 @@ def reflect_outline(
         for page in outline.pages
     ):
         defects.append("unsupported_numeric_fact")
+    if any(len(page.title) > 40 for page in outline.pages):
+        defects.append("title_too_long")
+    if any(len(page.key_points) > 3 for page in outline.pages):
+        defects.append("too_many_key_points")
+    # memory_anchors and narrative_framework are quality signals, not hard errors
+    # — they do not block reflection pass or rework.
     return ReflectionResult(passed=not defects, defects=defects)
 
 
@@ -87,25 +93,37 @@ def generate_outline(
     draft = model.generate(
         DeckOutlineDraft,
         (
-            "生成详细的演示文稿结构大纲。每页包含：标题、页面目标、"
-            "核心要点、页面类型、排版布局、配图建议和图标建议。"
-            ""
-            "layout 从以下类型中选择最合适的（避免全用同一种）："
-            "  text — 纯文字段落，适合叙述"
-            "  bullets — 要点列表，适合并列信息"
-            "  two_column — 双栏，适合文字+要点/配图"
-            "  big_number — 数据突出，适合关键指标"
-            "  comparison — 左右对比，适合对比分析"
-            "  table — 表格，适合结构化数据"
-            "  quote — 引用/金句"
-            ""
-            "image_suggestion：如该页适合配图，填写建议配图方向"
-            "（如'中国大模型市场份额对比图'），不需要配图则留空。"
-            "icon_suggestion：如该页适合图标点缀，填写图标含义"
-            "（如'增长率箭头'、'对勾'），不需要则留空。"
-            ""
-            "无法由材料支持的内容必须记录为 gaps，不能编造。"
-            "verified_facts 中的事实优先于模型记忆；引用时保留其 source_url。"
+            "你是一位顶级演示文稿设计师。按以下5层结构生成详细大纲。\n"
+            "\n"
+            "## 1. 全局锚点\n"
+            "- narrative_framework: 选择叙事框架(SCQA/成果-问题-计划/是什么-为什么-怎么做/痛点-方案-价值)\n"
+            "- narrative: 一句话叙事主线\n"
+            "- global_constraints: 列出全局硬规则(如'单页正文≤100字''禁止大段文字''颜色≤3种')\n"
+            "\n"
+            "## 2. 叙事结构\n"
+            "- 章节划分3-4个，每章明确'解决什么疑问'\n"
+            "- target_slides: 根据时长合理分页\n"
+            "\n"
+            "## 3. 单页精细规范(每页)\n"
+            "- title: 必须是结论式标题(≤30字)，不是范畴名\n  ❌'市场分析' ✅'2025年市场规模破100亿'\n"
+            "- page_type: 封面/目录/章节过渡/内容/数据/案例/金句/结尾\n"
+            "- layout: 见下方类型\n"
+            "- key_points: 支撑论点≤3条，每条≤15字\n"
+            "- visual_detail: 排版细则(比例/对齐/高亮/留白)\n 如'左3右7分栏，标题左对齐，核心数字83%用主色加粗放大'\n"
+            "- image_suggestion: 配图精确要求，禁止模糊描述\n  ❌'放AI图' ✅'扁平化蓝色极简插画，AI生成PPT的办公场景，右侧60%区域'\n"
+            "- logical_bridge: 与前一页的逻辑衔接，如'上页讲痛点，本页用数据证明市场规模'\n"
+            "- is_memory_anchor: 每3-5页设1个记忆锚点(数字/金句/反差)\n"
+            "\n"
+            "## 4. 体验节奏\n"
+            "- 每3页高密度页配1页轻页(金句/过渡)\n"
+            "- 排版穿插(不要所有页同一种layout)\n"
+            "- 记忆锚点均匀分布\n"
+            "\n"
+            "## 5. 质量守则\n"
+            "- 每页只讲一个核心结论\n"
+            "- 单页正文要点不超过3条\n"
+            "- 颜色主色≤3种\n"
+            "- 无法由材料或事实支持的内容标记为gaps\n"
         ),
         prompt,
         api_key,
