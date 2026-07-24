@@ -277,7 +277,7 @@ class M2Repository:
                 "task_type",
                 "special_requirements",
             }:
-                raise ValueError("invalid requirement update")
+                continue
             updates[field_name] = RequirementField(
                 value=value,
                 confidence=1,

@@ -1,5 +1,7 @@
 import json
 
+from pydantic import BaseModel
+
 from pptmaker.m2.models import (
     ConversationTurn,
     GapCandidate,
@@ -9,6 +11,12 @@ from pptmaker.m2.models import (
     RequirementField,
 )
 from pptmaker.providers.structured import StructuredModel
+from pptmaker.research.contracts import FreshnessDecision
+
+
+class RequirementExtraction(BaseModel):
+    brief: RequirementBrief
+    ai_freshness: FreshnessDecision
 
 
 DEFAULT_PRIORITY = {
@@ -174,6 +182,25 @@ def extract_requirements(
     *,
     current: RequirementBrief | None = None,
 ) -> RequirementBrief:
+    return extract_requirements_with_freshness(
+        project_id,
+        chunks,
+        turns,
+        model,
+        api_key,
+        current=current,
+    ).brief
+
+
+def extract_requirements_with_freshness(
+    project_id: str,
+    chunks: list[MaterialChunk],
+    turns: list[ConversationTurn],
+    model: StructuredModel,
+    api_key: str,
+    *,
+    current: RequirementBrief | None = None,
+) -> RequirementExtraction:
     evidence = {
         "materials": [
             {
@@ -188,15 +215,28 @@ def extract_requirements(
             for turn in turns
         ],
     }
-    extracted = model.generate(
-        RequirementBrief,
+    generated = model.generate(
+        RequirementExtraction,
         (
             "提取演示文稿需求。只能使用输入中的证据；未知字段保持为空。"
             "每个已提取字段必须填写 confidence 和 source。"
+            "同时判断任务是否依赖会随时间变化的公共事实。"
+            "safe_queries 只能概括公开主题，禁止包含联系人、账号、密钥、"
+            "内部编号或材料原文。"
         ),
         json.dumps(evidence, ensure_ascii=False)[:100_000],
         api_key,
     )
+    if isinstance(generated, RequirementBrief):
+        generated = RequirementExtraction(
+            brief=generated,
+            ai_freshness=FreshnessDecision(
+                requires_web=False,
+                reason="未获得 AI 时效性判断",
+                freshness_level="LOW",
+            ),
+        )
+    extracted = generated.brief
     base = current or RequirementBrief(project_id=project_id)
     updates = {}
     for field_name in DEFAULT_PRIORITY:
@@ -222,7 +262,7 @@ def extract_requirements(
             not _missing(candidate) and candidate.confidence > existing.confidence
         ):
             special[field_name] = candidate
-    return base.model_copy(
+    brief = base.model_copy(
         update={
             "project_id": project_id,
             "task_type": task_type,
@@ -230,3 +270,4 @@ def extract_requirements(
             **updates,
         }
     )
+    return generated.model_copy(update={"brief": brief})

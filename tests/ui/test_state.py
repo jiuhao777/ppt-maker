@@ -8,7 +8,10 @@ def test_session_defaults_never_persist_api_key():
     initialize_session_state(state)
 
     assert state["api_key"] == ""
+    assert state["bocha_api_key"] == ""
+    assert state["bocha_connection_verified"] is False
     assert "api_key" not in ProjectCreate(name="Demo").model_dump()
+    assert "bocha_api_key" not in ProjectCreate(name="Demo").model_dump()
 
 
 def test_streamlit_server_is_local_only():

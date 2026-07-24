@@ -20,7 +20,7 @@ C:\Users\DELL\.conda\envs\AI\python.exe scripts/check_m2_gate.py
 
 Results:
 
-- 215 tests passed;
+- 256 tests passed;
 - 6 tests deselected: external DeepSeek and interactive Office tests;
 - M2 automated gate passed;
 - key-field coverage: 100%;
@@ -33,6 +33,10 @@ Results:
 - local rework scope accuracy: 100%;
 - outline-version accuracy: 100%;
 - new-version auto-selection: 100%;
+- freshness-route accuracy: 100%;
+- user-policy override accuracy: 100%;
+- normalized-fact traceability: 100%;
+- unsafe-content rejection: 100%;
 - approval violations: 0;
 - secret leaks: 0.
 
@@ -52,6 +56,10 @@ The four evaluation cases are isolated synthetic cases: topic only, sufficient m
 - LangGraph question and approval interrupts with SQLite checkpoints;
 - restart recovery without persisted API Keys;
 - Streamlit task, interview, outline, version, restore, and approval controls.
+- three-state web policy with an AI-assisted deterministic freshness router;
+- session-only optional Bocha Key and fixed-endpoint search adapter;
+- normalized project Fact Store with source exclusion;
+- current facts supplied to outline generation with URLs and access dates.
 
 ## Manual acceptance still required
 
@@ -63,20 +71,20 @@ streamlit run src/pptmaker/ui/app.py
 
 Verify:
 
-1. create a project and enter a Chinese topic;
-2. receive concise task-relevant questions with reasons, choices, and no repeated known field;
-3. use “不知道/不确定” once and confirm the assumption is visible;
-4. save a manual edit and confirm the new version is selected automatically while old versions remain available;
-5. request a global rework and verify its impact preview before confirming;
-6. request a local rework and verify unselected pages remain unchanged;
-7. approve the exact version and confirm deduplicated research-task count appears;
-8. refresh and confirm project state remains while the API Key is cleared.
+1. configure a runtime DeepSeek Key and optional Bocha Key;
+2. select `AUTO`, enter “中国大模型现状”, and confirm web verification runs with dated sources;
+3. upload a quarterly report for summarization and confirm `AUTO` does not search;
+4. select `ALWAYS` without a Bocha Key and confirm the warning and disabled action;
+5. select `NEVER` for a current topic and confirm the freshness-risk warning;
+6. exclude one source and confirm regeneration no longer receives that fact;
+7. receive concise task-relevant questions and complete global/local rework;
+8. refresh and confirm both Keys are cleared while policy, facts, and versions remain.
 
 No Key is written to the database, checkpoint, JSON export, evaluation artifact, or log.
 
 ## Known limitations
 
-- M2 does not perform web research; it only produces research-task contracts.
+- M2 performs only bounded freshness verification; full data, case, image, and citation research remains a later milestone.
 - Images and scanned PDFs are not recognized until the later visual milestone.
 - Full page copy, SlideDSL, PPTX generation, and rendering are outside M2.
 - Playwright CLI could not retain a browser/server process inside the current non-interactive Codex Windows session. Streamlit AppTest passed; user-browser acceptance remains the authoritative visual check.

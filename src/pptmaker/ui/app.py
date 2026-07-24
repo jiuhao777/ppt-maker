@@ -18,6 +18,7 @@ from pptmaker.projects.portability import (
     import_project,
 )
 from pptmaker.providers import PRESETS, OpenAICompatibleProvider, ProviderConfig
+from pptmaker.research.bocha import BochaSearch
 from pptmaker.ui.state import initialize_session_state
 from pptmaker.ui.m2_workspace import render_m2_workspace
 from pptmaker.workflow import reconcile_interrupted_projects
@@ -27,6 +28,10 @@ def _apply_provider_preset() -> None:
     preset = PRESETS[st.session_state.provider_id]
     st.session_state.provider_base_url = preset.base_url
     st.session_state.provider_model = preset.model
+
+
+def _invalidate_bocha_connection() -> None:
+    st.session_state.bocha_connection_verified = False
 
 
 def _provider_settings() -> None:
@@ -67,6 +72,41 @@ def _provider_settings() -> None:
             st.success("连接成功，能力探测已完成。")
             for warning in report.warnings:
                 st.warning(warning)
+
+    with st.expander(
+        "联网搜索（可选）",
+        expanded=st.session_state.show_search_settings,
+    ):
+        st.caption("博查 Key 仅保存在当前会话；强制联网时必须填写。")
+        st.text_input(
+            "博查 API Key（可选）",
+            type="password",
+            key="bocha_api_key",
+            on_change=_invalidate_bocha_connection,
+        )
+        st.selectbox(
+            "搜索时效范围",
+            ["noLimit", "oneYear", "oneMonth"],
+            index=1,
+            format_func={
+                "noLimit": "不限时间",
+                "oneYear": "一年内",
+                "oneMonth": "一个月内",
+            }.get,
+            key="search_freshness",
+        )
+        if st.button("测试搜索连接", icon=":material/network_check:"):
+            if not st.session_state.bocha_api_key:
+                st.warning("请先输入博查 API Key。")
+            else:
+                report = BochaSearch().probe(st.session_state.bocha_api_key)
+                st.session_state.bocha_connection_verified = (
+                    report.status == "success"
+                )
+                if report.status == "success":
+                    st.success("搜索连接成功。")
+                else:
+                    st.error("搜索服务连接失败，请检查 Key 或稍后重试。")
 
 
 def _create_and_import(repository: ProjectRepository) -> None:
@@ -155,11 +195,25 @@ def _project_workspace(repository: ProjectRepository) -> None:
             index=provider_ids.index(current),
             key=f"project_provider_{project.id}",
         )
+        web_policy = st.selectbox(
+            "联网策略",
+            ["AUTO", "ALWAYS", "NEVER"],
+            index=["AUTO", "ALWAYS", "NEVER"].index(project.web_policy),
+            format_func={
+                "AUTO": "自动判断",
+                "ALWAYS": "强制联网",
+                "NEVER": "禁止联网",
+            }.get,
+            key=f"web_policy_{project.id}",
+        )
         if st.button("保存项目设置", icon=":material/save:"):
             try:
                 repository.update(
                     project.id,
-                    ProjectUpdate(last_provider_preset=selected_provider),
+                    ProjectUpdate(
+                        last_provider_preset=selected_provider,
+                        web_policy=web_policy,
+                    ),
                     expected_version=project.version,
                 )
                 st.success("项目设置已保存。")

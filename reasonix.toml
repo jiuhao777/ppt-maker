@@ -1,0 +1,2 @@
+[permissions]
+allow = ["Bash(curl -s \"https://api.github.com/search/repositories?q=reasonix+skill+Agent-Reach&per_page=5\" 2>/dev/null | python3 -c \"import sys,json; data=json.load(sys.stdin); [print(r['full_name'], r['html_url']) for r in data.get('items',[])]\" 2>/dev/null || echo \"curl failed\")"]

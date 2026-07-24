@@ -61,6 +61,22 @@ def check_m2_gate(artifact_dir: Path) -> list[str]:
             metrics.get("version_auto_selection", 0) < 1,
         ),
         (
+            "freshness route accuracy below 95%",
+            metrics.get("freshness_route_accuracy", 0) < 0.95,
+        ),
+        (
+            "policy override accuracy below 100%",
+            metrics.get("policy_override_accuracy", 0) < 1,
+        ),
+        (
+            "fact traceability below 100%",
+            metrics.get("fact_traceability", 0) < 1,
+        ),
+        (
+            "unsafe content rejection below 100%",
+            metrics.get("unsafe_content_rejection", 0) < 1,
+        ),
+        (
             f"approval violations: {metrics.get('approval_violations', 1)}",
             metrics.get("approval_violations", 1) != 0,
         ),

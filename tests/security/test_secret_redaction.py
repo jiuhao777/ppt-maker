@@ -43,6 +43,16 @@ def test_log_filter_redacts_secret_dictionary_values(caplog):
     assert "TEST_KEY" not in caplog.text
 
 
+def test_bearer_bocha_key_is_redacted(caplog):
+    configure_logging()
+    logging.getLogger("pptmaker.research.bocha").warning(
+        "Authorization: Bearer %s", "TEST_KEY"
+    )
+
+    assert "TEST_KEY" not in caplog.text
+    assert "[REDACTED]" in caplog.text
+
+
 def _response(status):
     request = httpx.Request("POST", "https://test.invalid")
     return httpx.Response(status, request=request)
@@ -97,3 +107,4 @@ def test_dependency_log_levels_are_not_debug():
     assert logging.getLogger("httpx").level == logging.WARNING
     assert logging.getLogger("httpcore").level == logging.WARNING
     assert logging.getLogger("openai").level == logging.WARNING
+    assert logging.getLogger("pptmaker.research.bocha").level == logging.WARNING

@@ -10,6 +10,7 @@ from pptmaker.m2.models import (
 )
 from pptmaker.m2.outlines import reflect_outline
 from pptmaker.providers.structured import StructuredModel
+from pptmaker.research.contracts import FactRecord
 
 
 class InvalidRework(ValueError):
@@ -36,17 +37,32 @@ def analyze_rework(
     request: ReworkRequest,
     model: StructuredModel,
     api_key: str,
+    *,
+    facts: list[FactRecord] | None = None,
 ) -> ReworkImpact:
     impact = model.generate(
         ReworkImpact,
         (
             "分析大纲返工影响范围。只能返回现有页面 ID。"
             "局部返工必须包含用户选择页，并说明每个影响理由。"
+            "requirement_updates 键名只能是 purpose/audience/scenario/"
+            "duration_minutes/target_slides/language/style/priorities/"
+            "source_boundary/quality_preference 之一，不得使用其他键名。"
+            "verified_facts 中的事实优先于大纲原有内容。"
         ),
         json.dumps(
             {
                 "request": request.model_dump(mode="json"),
                 "outline": current.model_dump(mode="json"),
+                "verified_facts": [
+                    {
+                        "statement": fact.statement,
+                        "source_url": str(fact.source_url),
+                        "source_title": fact.source_title,
+                    }
+                    for fact in (facts or [])
+                    if not fact.excluded
+                ],
             },
             ensure_ascii=False,
         )[:100_000],
@@ -80,6 +96,8 @@ def apply_rework(
     impact: ReworkImpact,
     model: StructuredModel,
     api_key: str,
+    *,
+    facts: list[FactRecord] | None = None,
 ) -> DeckOutlineDraft:
     draft = model.generate(
         DeckOutlineDraft,
@@ -99,6 +117,21 @@ def apply_rework(
                         "text": chunk.text,
                     }
                     for chunk in chunks
+                ],
+                "verified_facts": [
+                    {
+                        "statement": fact.statement,
+                        "source_url": str(fact.source_url),
+                        "source_title": fact.source_title,
+                        "published_at": (
+                            fact.published_at.isoformat()
+                            if fact.published_at
+                            else None
+                        ),
+                        "accessed_at": fact.accessed_at.isoformat(),
+                    }
+                    for fact in (facts or [])
+                    if not fact.excluded
                 ],
             },
             ensure_ascii=False,

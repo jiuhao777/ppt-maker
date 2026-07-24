@@ -7,6 +7,7 @@ from pptmaker.ui.m2_workspace import (
     apply_pending_version,
     outline_version_label,
     queue_version_selection,
+    web_generation_block,
 )
 
 
@@ -87,3 +88,19 @@ def test_version_label_includes_status_and_creation_method():
     )
 
     assert outline_version_label(outline) == "v2 · DRAFT · MANUAL_EDIT"
+
+
+def test_always_without_verified_key_blocks_generation():
+    project = ProjectCreate(name="Demo", web_policy="ALWAYS")
+
+    block = web_generation_block(project, {})
+
+    assert block.blocked
+    assert block.banner == "当前项目要求联网，但尚未配置博查 API Key"
+    assert block.button_label == "请先配置联网搜索"
+
+
+def test_auto_without_key_does_not_block_generation():
+    project = ProjectCreate(name="Demo", web_policy="AUTO")
+
+    assert not web_generation_block(project, {}).blocked

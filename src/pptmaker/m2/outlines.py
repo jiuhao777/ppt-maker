@@ -12,6 +12,7 @@ from pptmaker.m2.models import (
     RequirementBrief,
 )
 from pptmaker.providers.structured import StructuredModel
+from pptmaker.research.contracts import FactRecord
 
 
 def reflect_outline(
@@ -53,6 +54,8 @@ def generate_outline(
     chunks: list[MaterialChunk],
     model: StructuredModel,
     api_key: str,
+    *,
+    facts: list[FactRecord] | None = None,
 ) -> DeckOutline:
     evidence = {
         "requirements": brief.model_dump(mode="json"),
@@ -64,13 +67,45 @@ def generate_outline(
             }
             for chunk in chunks
         ],
+        "verified_facts": [
+            {
+                "statement": fact.statement,
+                "source_url": str(fact.source_url),
+                "source_title": fact.source_title,
+                "published_at": (
+                    fact.published_at.isoformat()
+                    if fact.published_at
+                    else None
+                ),
+                "accessed_at": fact.accessed_at.isoformat(),
+            }
+            for fact in (facts or [])
+            if not fact.excluded
+        ],
     }
     prompt = json.dumps(evidence, ensure_ascii=False)[:100_000]
     draft = model.generate(
         DeckOutlineDraft,
         (
-            "生成结构大纲。每页包含标题、目标、要点、页面类型和来源定位。"
-            "无法由材料支持的事实、数据、案例或图片必须记录为 gaps，不能编造。"
+            "生成详细的演示文稿结构大纲。每页包含：标题、页面目标、"
+            "核心要点、页面类型、排版布局、配图建议和图标建议。"
+            ""
+            "layout 从以下类型中选择最合适的（避免全用同一种）："
+            "  text — 纯文字段落，适合叙述"
+            "  bullets — 要点列表，适合并列信息"
+            "  two_column — 双栏，适合文字+要点/配图"
+            "  big_number — 数据突出，适合关键指标"
+            "  comparison — 左右对比，适合对比分析"
+            "  table — 表格，适合结构化数据"
+            "  quote — 引用/金句"
+            ""
+            "image_suggestion：如该页适合配图，填写建议配图方向"
+            "（如'中国大模型市场份额对比图'），不需要配图则留空。"
+            "icon_suggestion：如该页适合图标点缀，填写图标含义"
+            "（如'增长率箭头'、'对勾'），不需要则留空。"
+            ""
+            "无法由材料支持的内容必须记录为 gaps，不能编造。"
+            "verified_facts 中的事实优先于模型记忆；引用时保留其 source_url。"
         ),
         prompt,
         api_key,
@@ -81,7 +116,8 @@ def generate_outline(
         return outline
     corrected = model.generate(
         DeckOutlineDraft,
-        "修正结构大纲，但不得增加用户未提出的目标。",
+        "修正结构大纲，但不得增加用户未提出的目标。"
+        "保留已有的 layout、image_suggestion 和 icon_suggestion 选择。",
         json.dumps(
             {
                 "defects": reflection.defects,

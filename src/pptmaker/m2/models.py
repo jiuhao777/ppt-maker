@@ -111,6 +111,9 @@ class OutlinePage(BaseModel):
     objective: str = Field(min_length=1, max_length=500)
     key_points: list[str] = Field(default_factory=list, max_length=10)
     page_type: str = Field(default="content", max_length=100)
+    layout: str = Field(default="text")  # text|bullets|two_column|big_number|comparison|table|quote
+    image_suggestion: str = Field(default="", max_length=500)
+    icon_suggestion: str = Field(default="", max_length=200)
     source_locations: list[str] = Field(default_factory=list, max_length=100)
     gaps: list[OutlineGap] = Field(default_factory=list, max_length=20)
 

@@ -444,6 +444,23 @@ def _render_outline(project, projects, repository):
                         value="\n".join(page.key_points),
                         key=f"m2_points_{selected.version}_{page.id}",
                     )
+                    layout = st.selectbox(
+                        "排版方式",
+                        ["text", "bullets", "two_column", "big_number", "comparison", "table", "quote"],
+                        index=["text", "bullets", "two_column", "big_number", "comparison", "table", "quote"].index(page.layout if page.layout in ["text","bullets","two_column","big_number","comparison","table","quote"] else "text"),
+                        format_func={"text":"正文", "bullets":"要点", "two_column":"双栏", "big_number":"大字", "comparison":"对比", "table":"表格", "quote":"引用"}.get,
+                        key=f"m2_layout_{selected.version}_{page.id}",
+                    )
+                    image_suggestion = st.text_input(
+                        "配图建议（如不需要则留空）",
+                        value=page.image_suggestion,
+                        key=f"m2_img_{selected.version}_{page.id}",
+                    )
+                    icon_suggestion = st.text_input(
+                        "图标建议（如不需要则留空）",
+                        value=page.icon_suggestion,
+                        key=f"m2_icon_{selected.version}_{page.id}",
+                    )
                     remove = st.checkbox(
                         "删除此页",
                         key=f"m2_remove_{selected.version}_{page.id}",
@@ -456,6 +473,9 @@ def _render_outline(project, projects, repository):
                                     "title": title,
                                     "objective": objective,
                                     "section": section,
+                                    "layout": layout,
+                                    "image_suggestion": image_suggestion,
+                                    "icon_suggestion": icon_suggestion,
                                     "key_points": [
                                         item.strip()
                                         for item in key_points.splitlines()
