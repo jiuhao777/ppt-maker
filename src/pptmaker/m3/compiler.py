@@ -36,15 +36,16 @@ def _compile_slide(slide: SlideContent, order: int, design: DesignPlan) -> Slide
     elif slide.page_type == "contents":
         elements = _contents(slide, font, design)
     else:
-        elements = _content(slide, font, design)
+        elements = _content(slide, font, design) if slide.layout == "text" else \
+                   _bullets_layout(slide, font, design) if slide.layout == "bullets" else \
+                   _two_column(slide, font, design) if slide.layout == "two_column" else \
+                   _big_number(slide, font, design) if slide.layout == "big_number" else \
+                   _comparison(slide, font, design) if slide.layout == "comparison" else \
+                   _table_layout(slide, font, design) if slide.layout == "table" else \
+                   _quote_layout(slide, font, design)
 
-    return SlideSpec(
-        page_id=slide.page_id,
-        order=order,
-        page_type=slide.page_type,
-        background_color=bg,
-        elements=elements,
-    )
+    return SlideSpec(page_id=slide.page_id, order=order, page_type=slide.page_type,
+                     background_color=bg, elements=elements)
 
 
 def _cover(slide: SlideContent, font, design: DesignPlan) -> list:
@@ -97,45 +98,116 @@ def _contents(slide: SlideContent, font, design) -> list:
 
 
 def _content(slide: SlideContent, font, design) -> list:
+    """text layout — 正文段落"""
+    return _title_bar(slide, font, design) + _body_text(slide, font, body_y=TITLE_H + MARGIN_Y + GAP + 0.1)
+
+
+def _bullets_layout(slide: SlideContent, font, design) -> list:
+    """要点列表"""
+    el = _title_bar(slide, font, design)
+    items = slide.bullet_points if slide.bullet_points else slide.body_paragraphs
+    if items:
+        el.append(BulletElement(type="bullet", items=items, x=MARGIN_X + 0.3, y=TITLE_H + MARGIN_Y + GAP + 0.1,
+                                width=CANVAS_W - 2 * MARGIN_X - 0.3, height=CANVAS_H - TITLE_H - MARGIN_Y * 2 - GAP,
+                                font_size=font.body_size + 2, font_name=font.body_zh, color=design.palette.text_primary))
+    return el
+
+
+def _two_column(slide: SlideContent, font, design) -> list:
+    """双栏 — 左文字、右要点/图片"""
+    el = _title_bar(slide, font, design)
+    y = TITLE_H + MARGIN_Y + GAP + 0.1
+    mid = MARGIN_X + (CANVAS_W - 2 * MARGIN_X) / 2 + 0.3
+    left_w = mid - MARGIN_X - 0.2
+    right_w = CANVAS_W - MARGIN_X - mid - 0.2
+    space_h = CANVAS_H - y - MARGIN_Y
+
+    if slide.body_paragraphs:
+        body = "\n\n".join(slide.body_paragraphs)
+        el.append(_text(body, MARGIN_X, y, left_w, space_h, font.body_size, font.body_zh))
+    if slide.bullet_points:
+        el.append(BulletElement(type="bullet", items=slide.bullet_points, x=mid, y=y,
+                                width=right_w, height=space_h, font_size=font.body_size,
+                                font_name=font.body_zh, color=design.palette.text_primary))
+    if slide.image_suggestion:
+        el.append(ImagePlaceholder(type="image_placeholder", x=mid, y=y, width=right_w, height=min(space_h, 3.5),
+                                   description=slide.image_suggestion))
+    return el
+
+
+def _big_number(slide: SlideContent, font, design) -> list:
+    """大字数据突出"""
+    el = _title_bar(slide, font, design)
+    y = TITLE_H + MARGIN_Y + GAP + 0.5
+    el.append(_text(slide.body_paragraphs[0] if slide.body_paragraphs else slide.title,
+                    MARGIN_X + 1.0, y, CANVAS_W - 2 * (MARGIN_X + 1.0), 2.5,
+                    font.title_size + 8, font.title_zh, bold=True))
+    if len(slide.body_paragraphs) > 1:
+        el.append(_text(slide.body_paragraphs[1], MARGIN_X + 1.0, y + 2.8, CANVAS_W - 2 * (MARGIN_X + 1.0), 0.6,
+                        font.subtitle_size, font.body_zh))
+    return el
+
+
+def _comparison(slide: SlideContent, font, design) -> list:
+    """对比布局 — 左右对比"""
+    el = _title_bar(slide, font, design)
+    y = TITLE_H + MARGIN_Y + GAP + 0.2
+    mid = MARGIN_X + (CANVAS_W - 2 * MARGIN_X) / 2
+    w = (CANVAS_W - 2 * MARGIN_X) / 2 - 0.5
+    h = CANVAS_H - y - MARGIN_Y
+    items = slide.bullet_points if slide.bullet_points else ["项目A", "项目B"]
+
+    for i, (side, label) in enumerate([(MARGIN_X + 0.2, items[0] if len(items) > 0 else "A"),
+                                        (mid + 0.3, items[1] if len(items) > 1 else "B")]):
+        bg_rect = RectShape(type="rect", x=side - 0.2, y=y, width=w + 0.4, height=h,
+                            fill_color=design.palette.secondary if i == 0 else design.palette.background)
+        el.append(bg_rect)
+        el.append(_text(label, side + 0.3, y + GAP, w - 0.6, h - GAP * 2,
+                        font.body_size + 2, font.body_zh, bold=True))
+    return el
+
+
+def _table_layout(slide: SlideContent, font, design) -> list:
+    """表格"""
+    el = _title_bar(slide, font, design)
+    rows = slide.table_rows or [["列1", "列2"], ["", ""]]
+    y = TITLE_H + MARGIN_Y + GAP + 0.1
+    el.append(TableBlock(type="table", rows=rows, x=MARGIN_X, y=y,
+                         width=CANVAS_W - 2 * MARGIN_X,
+                         height=min(len(rows) * 0.45 + 0.3, CANVAS_H - y - MARGIN_Y),
+                         font_size=font.body_size))
+    return el
+
+
+def _quote_layout(slide: SlideContent, font, design) -> list:
+    """引用"""
     el = []
-    # title bar
+    quote = slide.body_paragraphs[0] if slide.body_paragraphs else slide.title
+    el.append(RectShape(type="rect", x=MARGIN_X + 1.5, y=2.0, width=0.05, height=2.5,
+                        fill_color=design.palette.accent))
+    el.append(_text(f"「{quote}」", MARGIN_X + 2.0, 2.2, CANVAS_W - 2 * MARGIN_X - 2.5, 1.5,
+                    font.title_size - 2, font.title_zh))
+    if len(slide.body_paragraphs) > 1:
+        el.append(_text(f"—— {slide.body_paragraphs[1]}", MARGIN_X + 2.0, 4.0,
+                        CANVAS_W - 2 * MARGIN_X - 2.5, 0.5, font.subtitle_size, font.body_zh))
+    return el
+
+
+def _title_bar(slide: SlideContent, font, design) -> list:
+    el = []
     el.append(_text(slide.title, MARGIN_X, MARGIN_Y, CANVAS_W - 2 * MARGIN_X, TITLE_H,
                     font.title_size, font.title_zh, bold=True))
     el.append(RectShape(type="rect", x=MARGIN_X, y=MARGIN_Y + TITLE_H, width=CANVAS_W - 2 * MARGIN_X,
                         height=0.02, fill_color=design.palette.accent))
-
-    body_y = MARGIN_Y + TITLE_H + GAP + 0.1
-    has_image = bool(slide.image_suggestion)
-
-    if has_image:
-        # two-column: text left, placeholder right
-        text_w = CANVAS_W - 2 * MARGIN_X - 4.0
-        img_x = CANVAS_W - MARGIN_X - 3.5
-        el.append(ImagePlaceholder(type="image_placeholder", x=img_x, y=body_y, width=3.5, height=3.0,
-                                   description=slide.image_suggestion or ""))
-    else:
-        text_w = CANVAS_W - 2 * MARGIN_X
-
-    space_h = CANVAS_H - body_y - MARGIN_Y
-
-    # body text
-    if slide.body_paragraphs:
-        body = "\n\n".join(slide.body_paragraphs)
-        rows = min(len(slide.body_paragraphs), 8)
-        body_h = min(rows * 0.45, space_h * 0.6)
-        el.append(_text(body, MARGIN_X, body_y, text_w, body_h,
-                        font.body_size, font.body_zh))
-
-    # bullet points
-    if slide.bullet_points:
-        bullet_y = body_y + (min(len(slide.body_paragraphs or [""]), 8) * 0.45 if slide.body_paragraphs else 0) + GAP
-        el.append(BulletElement(type="bullet", items=slide.bullet_points,
-                                x=MARGIN_X + 0.2, y=bullet_y,
-                                width=text_w - 0.2,
-                                height=space_h - (bullet_y - body_y),
-                                font_size=font.body_size, font_name=font.body_zh,
-                                color=design.palette.text_primary))
     return el
+
+
+def _body_text(slide: SlideContent, font, body_y: float) -> list:
+    if not slide.body_paragraphs:
+        return []
+    body = "\n\n".join(slide.body_paragraphs)
+    h = CANVAS_H - body_y - MARGIN_Y
+    return [_text(body, MARGIN_X, body_y, CANVAS_W - 2 * MARGIN_X, h, font.body_size, font.body_zh)]
 
 
 def _text(text, x, y, w, h, size, name, bold=False) -> TextElement:

@@ -29,6 +29,7 @@ class FontSet(BaseModel):
 class SlideContent(BaseModel):
     page_id: str = Field(min_length=1)
     page_type: str = Field(default="content")
+    layout: str = Field(default="text")  # text|bullets|two_column|big_number|comparison|table|quote
     title: str = Field(min_length=1, max_length=200)
     subtitle: str | None = Field(default=None, max_length=200)
     body_paragraphs: list[str] = Field(default_factory=list, max_length=20)
@@ -37,6 +38,7 @@ class SlideContent(BaseModel):
     key_number_label: str | None = Field(default=None, max_length=50)
     image_suggestion: str | None = Field(default=None, max_length=500)
     source_references: list[str] = Field(default_factory=list, max_length=20)
+    table_rows: list[list[str]] | None = Field(default=None, max_length=30)
 
 
 class ContentPlan(BaseModel):

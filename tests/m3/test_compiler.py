@@ -21,9 +21,9 @@ def _content(pages: list[SlideContent]) -> ContentPlan:
     return ContentPlan(project_id="p1", outline_version=1, slides=pages)
 
 
-def _page(page_id: str, order: int, title: str, page_type: str = "content", **kw) -> SlideContent:
+def _page(page_id: str, order: int, title: str, page_type: str = "content", layout: str = "text", **kw) -> SlideContent:
     defaults = dict(body_paragraphs=["body"], bullet_points=[], source_references=[])
-    return SlideContent(page_id=page_id, page_type=page_type, title=title, **{**defaults, **kw})
+    return SlideContent(page_id=page_id, page_type=page_type, layout=layout, title=title, **{**defaults, **kw})
 
 
 class TestCompileSpecs:
@@ -75,14 +75,14 @@ class TestCompileSpecs:
         assert "text" in types
 
     def test_bullet_points_generate_bullet_element(self):
-        pages = [_page("p1", 1, "Bullets", bullet_points=["A", "B", "C"])]
+        pages = [_page("p1", 1, "Bullets", layout="bullets", bullet_points=["A", "B", "C"])]
         specs = compile_specs(_content(pages), _design())
         bullets = [e for e in specs[0].elements if e.type == "bullet"]
         assert len(bullets) == 1
         assert len(bullets[0].items) == 3
 
     def test_image_suggestion_generates_placeholder(self):
-        pages = [_page("p1", 1, "Image", image_suggestion="chart")]
+        pages = [_page("p1", 1, "Image", layout="two_column", image_suggestion="chart")]
         specs = compile_specs(_content(pages), _design())
         placeholders = [e for e in specs[0].elements if e.type == "image_placeholder"]
         assert len(placeholders) == 1
