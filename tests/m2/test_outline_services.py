@@ -65,6 +65,46 @@ def test_reflection_detects_duplicate_pages_and_page_count():
     assert result.passed is False
 
 
+def test_string_page_count_is_checked():
+    requirements = RequirementBrief(
+        project_id="p1",
+        target_slides=RequirementField(value="12", confidence=1),
+    )
+    outline = deck(*[page(f"p{i}", i, f"Page {i}") for i in range(1, 11)])
+
+    result = reflect_outline(requirements, outline)
+
+    assert "requested_page_count_mismatch" in result.defects
+
+
+def test_string_duration_is_checked():
+    requirements = RequirementBrief(
+        project_id="p1",
+        duration_minutes=RequirementField(value="5", confidence=1),
+    )
+    outline = deck(*[page(f"p{i}", i, f"Page {i}") for i in range(1, 13)])
+
+    result = reflect_outline(requirements, outline)
+
+    assert "duration_density_high" in result.defects
+
+
+def test_local_reflection_ignores_unrelated_page_defects():
+    outline = deck(
+        page("p1", 1, "重复标题"),
+        page("p2", 2, "重复标题"),
+        page("p3", 3, "本页正常"),
+    )
+
+    result = reflect_outline(
+        RequirementBrief(project_id="p1"),
+        outline,
+        scope_page_ids={"p3"},
+    )
+
+    assert result.passed
+
+
 def test_every_unresolved_gap_becomes_research_task():
     outline = deck(
         page(
@@ -160,7 +200,16 @@ def test_outline_prompt_is_valid_json_with_large_material():
         text="中" * 200_000,
     )
 
-    generate_outline(brief(), [chunk], model, "TEST_KEY")
+    requirements = brief().model_copy(
+        update={
+            "target_slides": RequirementField(
+                value="1",
+                confidence=1,
+                source="user",
+            )
+        }
+    )
+    generate_outline(requirements, [chunk], model, "TEST_KEY")
 
     payload = json.loads(model.users[0])
     assert len(payload["materials"][0]["text"]) <= 3_000

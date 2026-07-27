@@ -155,7 +155,9 @@ def apply_rework(
         # one retry with defects
         draft = model.generate(
             DeckOutlineDraft,
-            f"修正以下缺陷：{', '.join(reflection.defects)}。不得引入新问题。",
+            f"修正以下缺陷：{', '.join(reflection.defects)}。"
+            "严格遵守 impact；局部返工必须逐字保留影响范围外页面及其页面 ID。"
+            "不得增加、删除或重排范围外页面。",
             json.dumps(
                 {
                     "current_outline": current.model_dump(mode="json"),

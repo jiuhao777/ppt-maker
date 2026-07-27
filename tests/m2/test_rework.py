@@ -48,9 +48,11 @@ class FakeModel:
         self.results = list(results)
         self.calls = 0
         self.users = []
+        self.systems = []
 
     def generate(self, schema, system, user, api_key):
         self.calls += 1
+        self.systems.append(system)
         self.users.append(user)
         return self.results.pop(0)
 
@@ -186,3 +188,45 @@ def test_rework_analysis_payload_remains_valid_json():
     )
 
     json.loads(model.users[0])
+
+
+def test_rework_retry_preserves_scope_instructions():
+    current = current_outline()
+    changed = current.pages[1].model_copy(
+        update={"title": "过长" * 30}
+    )
+    invalid = DeckOutlineDraft(
+        narrative=current.narrative,
+        target_slides=3,
+        pages=[current.pages[0], changed, current.pages[2]],
+    )
+    corrected = invalid.model_copy(
+        update={
+            "pages": [
+                current.pages[0],
+                changed.model_copy(update={"title": "更新后的方案"}),
+                current.pages[2],
+            ]
+        }
+    )
+    impact = ReworkImpact(
+        mode="local",
+        feedback="只修改方案页",
+        impacted_page_ids=["p2"],
+        reasons={"p2": "用户指定"},
+        refresh_research_tasks=False,
+    )
+    model = FakeModel([invalid, corrected])
+
+    apply_rework(
+        current,
+        RequirementBrief(project_id="p1"),
+        [],
+        impact,
+        model,
+        "TEST_KEY",
+    )
+
+    retry_payload = json.loads(model.users[1])
+    assert "影响范围外" in model.systems[1]
+    assert retry_payload["impact"]["mode"] == "local"

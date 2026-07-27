@@ -15,6 +15,16 @@ from pptmaker.providers.structured import StructuredModel
 from pptmaker.research.contracts import FactRecord
 
 
+def _positive_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value.strip())
+    except (AttributeError, TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def reflect_outline(
     brief: RequirementBrief,
     outline: DeckOutline,
@@ -22,7 +32,15 @@ def reflect_outline(
     scope_page_ids: set[str] | None = None,
 ) -> ReflectionResult:
     defects = []
-    titles = [" ".join(page.title.lower().split()) for page in outline.pages]
+    pages_to_check = (
+        [p for p in outline.pages if p.id in scope_page_ids]
+        if scope_page_ids is not None
+        else outline.pages
+    )
+    titles = [
+        " ".join(page.title.lower().split())
+        for page in pages_to_check
+    ]
     if len(titles) != len(set(titles)):
         defects.append("duplicate_titles")
     if len(outline.pages) != outline.target_slides:
@@ -31,13 +49,12 @@ def reflect_outline(
         range(1, len(outline.pages) + 1)
     ):
         defects.append("page_order_invalid")
-    requested = brief.target_slides.value
-    if isinstance(requested, int) and requested != outline.target_slides:
+    requested = _positive_int(brief.target_slides.value)
+    if requested is not None and requested != outline.target_slides:
         defects.append("requested_page_count_mismatch")
-    duration = brief.duration_minutes.value
+    duration = _positive_int(brief.duration_minutes.value)
     if (
-        isinstance(duration, int)
-        and duration > 0
+        duration is not None
         and outline.target_slides / duration > 2
     ):
         defects.append("duration_density_high")
@@ -45,14 +62,9 @@ def reflect_outline(
         re.search(r"\d", " ".join([page.title, *page.key_points]))
         and not page.source_locations
         and not page.gaps
-        for page in outline.pages
+        for page in pages_to_check
     ):
         defects.append("unsupported_numeric_fact")
-    pages_to_check = (
-        [p for p in outline.pages if p.id in scope_page_ids]
-        if scope_page_ids is not None
-        else outline.pages
-    )
     if any(len(page.title) > 40 for page in pages_to_check):
         defects.append("title_too_long")
     if any(len(page.key_points) > 3 for page in pages_to_check):
