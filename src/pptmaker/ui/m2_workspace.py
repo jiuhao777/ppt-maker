@@ -33,6 +33,7 @@ from pptmaker.projects import ProjectRepository, ProjectUpdate
 from pptmaker.providers import ProviderConfig, StructuredModel
 from pptmaker.providers.structured import StructuredOutputError
 from pptmaker.ui.state import safe_generation_message
+from pptmaker.blueprint.generator import InvalidBlueprint
 from pptmaker.research.bocha import BochaSearch
 from pptmaker.research.repository import ResearchRepository
 from pptmaker.research.service import FreshnessService, SearchKeyRequired
@@ -688,11 +689,23 @@ def render_m2_workspace(
         st.divider()
         _render_interview(project, projects, repository)
         _render_outline(project, projects, repository)
+        approved = [
+            item
+            for item in repository.list_outlines(project.id)
+            if item.status == "APPROVED"
+        ]
+        if approved:
+            from pptmaker.ui.blueprint_workspace import (
+                render_blueprint_workspace,
+            )
+            render_blueprint_workspace(project, projects, approved[-1])
         from pptmaker.ui.m3_workspace import render_m3_generation
         render_m3_generation(project, projects)
     except StructuredOutputError as exc:
         st.error(safe_generation_message(exc))
     except InvalidRework as exc:
         st.error(str(exc))
+    except InvalidBlueprint:
+        st.error("详细大纲未通过质量检查，请调整后重试。")
     except sqlite3.Error:
         st.error("本地数据保存失败，请重试。")

@@ -3,6 +3,7 @@ from pathlib import Path
 import streamlit as st
 
 from pptmaker.app_paths import database_path
+from pptmaker.blueprint.repository import BlueprintRepository
 from pptmaker.m2.models import DeckOutline, RequirementBrief
 from pptmaker.m2.repository import M2Repository
 from pptmaker.m3.builder import build_pptx
@@ -38,6 +39,14 @@ def render_m3_generation(project, projects: ProjectRepository) -> None:
     outlines = m2_repo.list_outlines(project.id)
     approved = [o for o in outlines if o.status == "APPROVED"]
     if not approved:
+        return
+    approved_blueprints = [
+        item
+        for item in BlueprintRepository(projects.path).list(project.id)
+        if item.status == "APPROVED"
+        and item.outline_version == approved[-1].version
+    ]
+    if not approved_blueprints:
         return
 
     brief = m2_repo.get_brief(project.id)
