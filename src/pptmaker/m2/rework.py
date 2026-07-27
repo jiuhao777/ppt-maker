@@ -24,10 +24,14 @@ def _validate_impact(
 ) -> None:
     current_ids = {page.id for page in current.pages}
     impacted = set(impact.impacted_page_ids)
-    if impact.mode != request.mode or not impacted <= current_ids:
+    if impact.mode != request.mode:
         raise InvalidRework("返工影响范围无效")
-    if request.mode == "local" and not set(request.selected_page_ids) <= impacted:
-        raise InvalidRework("返工影响范围无效")
+    if impact.mode == "global":
+        if not impacted <= current_ids:
+            raise InvalidRework("返工影响范围无效")
+    else:
+        if not impacted <= current_ids or not set(request.selected_page_ids) <= impacted:
+            raise InvalidRework("返工影响范围无效")
     if any(page_id not in impact.reasons for page_id in impacted):
         raise InvalidRework("返工影响范围无效")
 
@@ -65,7 +69,7 @@ def analyze_rework(
                 ],
             },
             ensure_ascii=False,
-        )[:100_000],
+        )[:50_000],
         api_key,
     )
     _validate_impact(current, request, impact)
@@ -135,7 +139,7 @@ def apply_rework(
                 ],
             },
             ensure_ascii=False,
-        )[:100_000],
+        )[:50_000],
         api_key,
     )
     validate_rework_scope(current, draft, impact)
@@ -146,7 +150,7 @@ def apply_rework(
         parent_version=current.version,
         **draft.model_dump(),
     )
-    reflection = reflect_outline(brief, candidate)
+    reflection = reflect_outline(brief, candidate, scope_page_ids=set(impact.impacted_page_ids))
     if not reflection.passed:
         raise InvalidRework("返工结果未通过质量检查")
     return draft

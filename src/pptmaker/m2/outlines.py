@@ -18,6 +18,8 @@ from pptmaker.research.contracts import FactRecord
 def reflect_outline(
     brief: RequirementBrief,
     outline: DeckOutline,
+    *,
+    scope_page_ids: set[str] | None = None,
 ) -> ReflectionResult:
     defects = []
     titles = [" ".join(page.title.lower().split()) for page in outline.pages]
@@ -46,9 +48,14 @@ def reflect_outline(
         for page in outline.pages
     ):
         defects.append("unsupported_numeric_fact")
-    if any(len(page.title) > 40 for page in outline.pages):
+    pages_to_check = (
+        [p for p in outline.pages if p.id in scope_page_ids]
+        if scope_page_ids is not None
+        else outline.pages
+    )
+    if any(len(page.title) > 40 for page in pages_to_check):
         defects.append("title_too_long")
-    if any(len(page.key_points) > 3 for page in outline.pages):
+    if any(len(page.key_points) > 3 for page in pages_to_check):
         defects.append("too_many_key_points")
     # memory_anchors and narrative_framework are quality signals, not hard errors
     # — they do not block reflection pass or rework.
