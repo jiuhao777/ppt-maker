@@ -2,22 +2,13 @@ from pathlib import Path
 
 from pptmaker.assets.models import AssetRecord
 from pptmaker.blueprint.models import DeckBlueprint
-from pptmaker.m3.models import (
-    BulletElement,
-    ChartElement,
-    DesignPlan,
-    ImageElement,
-    SlideSpec,
-    TextElement,
-)
+from pptmaker.m3.layouts import layout_page
+from pptmaker.m3.models import DesignPlan, SlideSpec
 from pptmaker.research.contracts import FactRecord
 
 
 class BlueprintCompileError(ValueError):
     pass
-
-
-_CHART_TYPES = {"column", "bar", "line", "pie", "doughnut"}
 
 
 def compile_blueprint(
@@ -68,87 +59,22 @@ def compile_blueprint(
                 "image page requires an approved local asset"
             )
 
-        elements = [
-            TextElement(
-                text=page.conclusion_title,
-                x=0.7,
-                y=0.5,
-                width=11.9,
-                height=0.8,
-                font_size=max(32, design.fonts.title_size),
-                font_name=design.fonts.title_zh,
-                bold=True,
-                color=design.palette.text_primary,
-            )
-        ]
-        if page.supporting_points:
-            elements.append(
-                BulletElement(
-                    items=page.supporting_points,
-                    x=0.8,
-                    y=1.6,
-                    width=5.5 if page_assets else 11.5,
-                    height=4.8,
-                    font_size=max(18, design.fonts.body_size),
-                    font_name=design.fonts.body_zh,
-                    color=design.palette.text_primary,
-                )
-            )
-        if page_assets:
-            elements.append(
-                ImageElement(
-                    path=page_assets[0].local_path,
-                    x=7.0,
-                    y=1.5,
-                    width=5.6,
-                    height=4.8,
-                )
-            )
         if page.visual.kind == "chart":
             data = page.visual.chart_data
             chart_type = (page.visual.chart_type or "").lower()
             if data is None:
                 raise BlueprintCompileError("chart page has no chart data")
-            if chart_type not in _CHART_TYPES:
+            if chart_type not in {
+                "column", "bar", "line", "pie", "doughnut"
+            }:
                 raise BlueprintCompileError("chart type is invalid")
-            elements.append(
-                ChartElement(
-                    chart_type=chart_type,
-                    categories=data.categories,
-                    series={
-                        item.name: [float(value) for value in item.values]
-                        for item in data.series
-                    },
-                    x=5.4,
-                    y=1.6,
-                    width=7.2,
-                    height=4.8,
-                )
-            )
-        sources = [
-            f"{fact_map[item].source_title} · "
-            f"{fact_map[item].source_url}"
-            for item in page.fact_ids
-        ]
-        sources.extend(
-            f"{item.attribution or item.creator or '作者未知'} · "
-            f"{item.landing_url}"
-            for item in page_assets
-        )
         specs.append(
-            SlideSpec(
-                page_id=page.page_id,
-                order=page.order,
-                page_type=page.page_type,
-                background_color=design.palette.background,
-                elements=elements,
-                speaker_notes=page.speaker_notes,
-                source_references=sources,
-                transition=(
-                    "fade"
-                    if blueprint.bible.animation_level == "simple"
-                    else "none"
-                ),
+            layout_page(
+                page,
+                blueprint.bible,
+                design,
+                [fact_map[item] for item in page.fact_ids],
+                page_assets,
             )
         )
     return specs
