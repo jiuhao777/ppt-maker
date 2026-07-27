@@ -70,6 +70,10 @@ class StructuredModel:
                     if isinstance(exc, ValidationError):
                         fields = [e["loc"][0] if e.get("loc") else "?" for e in exc.errors(include_url=False)]
                         msg += f" 校验失败字段: {', '.join(fields[:8])}"
+                    elif content is None:
+                        msg += " (API 返回内容为空)"
+                    elif isinstance(content, str):
+                        msg += f" (返回: {content[:200]})"
                     raise StructuredOutputError("invalid_structure", msg) from None
                 messages.append(
                     {
