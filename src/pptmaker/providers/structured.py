@@ -66,10 +66,11 @@ class StructuredModel:
                 return schema.model_validate_json(content)
             except (AttributeError, IndexError, ValidationError, TypeError) as exc:
                 if attempt == 2:
-                    raise StructuredOutputError(
-                        "invalid_structure",
-                        "模型未返回有效的结构化结果。",
-                    ) from None
+                    msg = "模型未返回有效的结构化结果。"
+                    if isinstance(exc, ValidationError):
+                        fields = [e["loc"][0] if e.get("loc") else "?" for e in exc.errors(include_url=False)]
+                        msg += f" 校验失败字段: {', '.join(fields[:8])}"
+                    raise StructuredOutputError("invalid_structure", msg) from None
                 messages.append(
                     {
                         "role": "user",
