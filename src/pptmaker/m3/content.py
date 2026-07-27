@@ -24,10 +24,18 @@ def plan_content(
         "requirements": brief.model_dump(mode="json"),
         "outline": outline.model_dump(mode="json"),
         "design": {"style_notes": design.style_notes, "palette": design.palette.model_dump()},
-        "materials": [{"source": c.source_name, "text": c.text} for c in chunks],
-        "verified_facts": [{"statement": f.statement, "source_title": f.source_title}
-                           for f in active_facts],
-    }, ensure_ascii=False)[:100_000]
+        "materials": [
+            {"source": c.source_name, "text": c.text[:3_000]}
+            for c in chunks[:10]
+        ],
+        "verified_facts": [
+            {
+                "statement": f.statement[:2_000],
+                "source_title": f.source_title[:500],
+            }
+            for f in active_facts[:100]
+        ],
+    }, ensure_ascii=False)
 
     system = (
         "为每页大纲生成完整文案。标题≤40字。"

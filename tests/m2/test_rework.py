@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from pptmaker.m2.models import (
@@ -45,9 +47,11 @@ class FakeModel:
     def __init__(self, results):
         self.results = list(results)
         self.calls = 0
+        self.users = []
 
     def generate(self, schema, system, user, api_key):
         self.calls += 1
+        self.users.append(user)
         return self.results.pop(0)
 
 
@@ -159,3 +163,26 @@ def test_invalid_local_rework_is_rejected():
 
     with pytest.raises(InvalidRework):
         validate_rework_scope(current, draft, impact)
+
+
+def test_rework_analysis_payload_remains_valid_json():
+    current = current_outline().model_copy(
+        update={"narrative": "中" * 49_000}
+    )
+    impact = ReworkImpact(
+        mode="global",
+        feedback="更新",
+        impacted_page_ids=["p1"],
+        reasons={"p1": "关联"},
+        refresh_research_tasks=False,
+    )
+    model = FakeModel([impact])
+
+    analyze_rework(
+        current,
+        ReworkRequest(mode="global", feedback="中" * 2_000),
+        model,
+        "TEST_KEY",
+    )
+
+    json.loads(model.users[0])

@@ -1,10 +1,16 @@
+import json
 from datetime import datetime, timezone
 
 import pytest
 
 from pptmaker.m3.models import ContentPlan, DesignPlan, SlideContent
 from pptmaker.m3.content import plan_content
-from pptmaker.m2.models import RequirementBrief, DeckOutline, OutlinePage
+from pptmaker.m2.models import (
+    DeckOutline,
+    MaterialChunk,
+    OutlinePage,
+    RequirementBrief,
+)
 from pptmaker.research.contracts import FactRecord
 from pptmaker.providers.structured import StructuredOutputError
 
@@ -82,3 +88,40 @@ class TestContentPlan:
         plan = plan_content(_brief(), _outline(1), _design(), [], [], Fake(), "KEY")
         assert state["calls"] == 2
         assert len(plan.slides) == 1
+
+    def test_large_material_payload_remains_valid_json(self):
+        class Fake:
+            def generate(self, schema, system, prompt, api_key):
+                self.last_prompt = prompt
+                return ContentPlan(
+                    project_id="p1",
+                    outline_version=1,
+                    slides=[
+                        SlideContent(
+                            page_id="p1",
+                            title="T",
+                            body_paragraphs=["ok"],
+                        )
+                    ],
+                )
+
+        model = Fake()
+        chunk = MaterialChunk(
+            project_id="p1",
+            source_name="large.md",
+            location="line 1",
+            text="中" * 200_000,
+        )
+
+        plan_content(
+            _brief(),
+            _outline(1),
+            _design(),
+            [chunk],
+            [],
+            model,
+            "KEY",
+        )
+
+        payload = json.loads(model.last_prompt)
+        assert len(payload["materials"][0]["text"]) <= 3_000

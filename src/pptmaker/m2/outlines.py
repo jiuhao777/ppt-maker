@@ -76,15 +76,15 @@ def generate_outline(
             {
                 "source": chunk.source_name,
                 "location": chunk.location,
-                "text": chunk.text,
+                "text": chunk.text[:3_000],
             }
-            for chunk in chunks
+            for chunk in chunks[:10]
         ],
         "verified_facts": [
             {
-                "statement": fact.statement,
+                "statement": fact.statement[:2_000],
                 "source_url": str(fact.source_url),
-                "source_title": fact.source_title,
+                "source_title": fact.source_title[:500],
                 "published_at": (
                     fact.published_at.isoformat()
                     if fact.published_at
@@ -94,9 +94,9 @@ def generate_outline(
             }
             for fact in (facts or [])
             if not fact.excluded
-        ],
+        ][:100],
     }
-    prompt = json.dumps(evidence, ensure_ascii=False)[:100_000]
+    prompt = json.dumps(evidence, ensure_ascii=False)
     draft = model.generate(
         DeckOutlineDraft,
         (

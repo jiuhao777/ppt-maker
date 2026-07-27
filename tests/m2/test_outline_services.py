@@ -1,6 +1,9 @@
+import json
+
 from pptmaker.m2.models import (
     DeckOutline,
     DeckOutlineDraft,
+    MaterialChunk,
     OutlineGap,
     OutlinePage,
     RequirementBrief,
@@ -116,9 +119,11 @@ class FakeModel:
     def __init__(self, drafts):
         self.drafts = list(drafts)
         self.calls = 0
+        self.users = []
 
     def generate(self, schema, system, user, api_key):
         self.calls += 1
+        self.users.append(user)
         return self.drafts.pop(0)
 
 
@@ -139,6 +144,26 @@ def test_generation_runs_one_bounded_quality_correction():
 
     assert [item.title for item in result.pages] == ["Start", "Finish"]
     assert model.calls == 2
+
+
+def test_outline_prompt_is_valid_json_with_large_material():
+    draft = DeckOutlineDraft(
+        narrative="Story",
+        target_slides=1,
+        pages=[page("p1", 1, "Start")],
+    )
+    model = FakeModel([draft])
+    chunk = MaterialChunk(
+        project_id="p1",
+        source_name="large.md",
+        location="line 1",
+        text="中" * 200_000,
+    )
+
+    generate_outline(brief(), [chunk], model, "TEST_KEY")
+
+    payload = json.loads(model.users[0])
+    assert len(payload["materials"][0]["text"]) <= 3_000
 
 
 def research(question, material_type, page_id):

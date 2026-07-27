@@ -60,16 +60,16 @@ def analyze_rework(
                 "outline": current.model_dump(mode="json"),
                 "verified_facts": [
                     {
-                        "statement": fact.statement,
+                        "statement": fact.statement[:2_000],
                         "source_url": str(fact.source_url),
-                        "source_title": fact.source_title,
+                        "source_title": fact.source_title[:500],
                     }
                     for fact in (facts or [])
                     if not fact.excluded
-                ],
+                ][:100],
             },
             ensure_ascii=False,
-        )[:50_000],
+        ),
         api_key,
     )
     _validate_impact(current, request, impact)
@@ -118,15 +118,15 @@ def apply_rework(
                     {
                         "source": chunk.source_name,
                         "location": chunk.location,
-                        "text": chunk.text,
+                        "text": chunk.text[:3_000],
                     }
-                    for chunk in chunks
+                    for chunk in chunks[:10]
                 ],
                 "verified_facts": [
                     {
-                        "statement": fact.statement,
+                        "statement": fact.statement[:2_000],
                         "source_url": str(fact.source_url),
-                        "source_title": fact.source_title,
+                        "source_title": fact.source_title[:500],
                         "published_at": (
                             fact.published_at.isoformat()
                             if fact.published_at
@@ -136,10 +136,10 @@ def apply_rework(
                     }
                     for fact in (facts or [])
                     if not fact.excluded
-                ],
+                ][:100],
             },
             ensure_ascii=False,
-        )[:50_000],
+        ),
         api_key,
     )
     validate_rework_scope(current, draft, impact)
@@ -156,8 +156,15 @@ def apply_rework(
         draft = model.generate(
             DeckOutlineDraft,
             f"修正以下缺陷：{', '.join(reflection.defects)}。不得引入新问题。",
-            json.dumps({"outline": candidate.model_dump(mode="json"), "defects": reflection.defects},
-                       ensure_ascii=False)[:50_000],
+            json.dumps(
+                {
+                    "current_outline": current.model_dump(mode="json"),
+                    "impact": impact.model_dump(mode="json"),
+                    "candidate": candidate.model_dump(mode="json"),
+                    "defects": reflection.defects,
+                },
+                ensure_ascii=False,
+            ),
             api_key,
         )
         validate_rework_scope(current, draft, impact)
