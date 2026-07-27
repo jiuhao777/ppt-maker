@@ -206,13 +206,13 @@ def extract_requirements_with_freshness(
             {
                 "source": chunk.source_name,
                 "location": chunk.location,
-                "text": chunk.text,
+                "text": chunk.text[:3_000],
             }
-            for chunk in chunks
+            for chunk in chunks[:10]
         ],
         "conversation": [
             {"role": turn.role, "field": turn.field, "content": turn.content}
-            for turn in turns
+            for turn in turns[-20:]
         ],
     }
     generated = model.generate(
@@ -224,7 +224,7 @@ def extract_requirements_with_freshness(
             "safe_queries 只能概括公开主题，禁止包含联系人、账号、密钥、"
             "内部编号或材料原文。"
         ),
-        json.dumps(evidence, ensure_ascii=False)[:100_000],
+        json.dumps(evidence, ensure_ascii=False),
         api_key,
     )
     if isinstance(generated, RequirementBrief):
