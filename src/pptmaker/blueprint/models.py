@@ -34,6 +34,25 @@ VisualKind = Literal[
 ]
 
 
+class ChartSeries(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    values: list[float] = Field(min_length=1, max_length=30)
+
+
+class ChartData(BaseModel):
+    categories: list[str] = Field(min_length=1, max_length=30)
+    series: list[ChartSeries] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def _matching_lengths(self):
+        if any(
+            len(item.values) != len(self.categories)
+            for item in self.series
+        ):
+            raise ValueError("chart series must match category count")
+        return self
+
+
 class DeckBible(BaseModel):
     schema_version: Literal[1] = 1
     scenario: str = Field(min_length=1, max_length=200)
@@ -53,6 +72,7 @@ class DeckBible(BaseModel):
     image_style: str = Field(default="", max_length=300)
     icon_style: str = Field(default="", max_length=200)
     footer: str = Field(default="", max_length=200)
+    animation_level: Literal["none", "simple"] = "simple"
 
     @model_validator(mode="after")
     def _limit_fonts(self):
@@ -71,6 +91,7 @@ class VisualPlan(BaseModel):
     alignment: Literal["left", "center", "right"] = "left"
     description: str = Field(default="", max_length=500)
     chart_type: str | None = Field(default=None, max_length=50)
+    chart_data: ChartData | None = None
     highlights: list[str] = Field(default_factory=list, max_length=2)
 
 

@@ -93,6 +93,36 @@ class ImagePlaceholder(BaseModel):
     description: str = Field(default="[图片区域]", max_length=500)
 
 
+class ImageElement(BaseModel):
+    type: Literal["image"] = "image"
+    path: str = Field(min_length=1, max_length=1_000)
+    x: float = Field(ge=0)
+    y: float = Field(ge=0)
+    width: float = Field(gt=0)
+    height: float = Field(gt=0)
+
+
+class ChartElement(BaseModel):
+    type: Literal["chart"] = "chart"
+    chart_type: Literal["column", "bar", "line", "pie", "doughnut"]
+    categories: list[str] = Field(min_length=1, max_length=30)
+    series: dict[str, list[float]] = Field(min_length=1, max_length=10)
+    x: float = Field(ge=0)
+    y: float = Field(ge=0)
+    width: float = Field(gt=0)
+    height: float = Field(gt=0)
+
+
+class LineElement(BaseModel):
+    type: Literal["line"] = "line"
+    x: float = Field(ge=0)
+    y: float = Field(ge=0)
+    width: float = Field(gt=0)
+    height: float = Field(ge=0)
+    color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    line_width: float = Field(default=1.5, gt=0, le=10)
+
+
 class RectShape(BaseModel):
     type: Literal["rect"] = "rect"
     x: float = Field(ge=0)
@@ -112,11 +142,23 @@ class TableBlock(BaseModel):
     font_size: int = Field(ge=8, le=36)
 
 
-SlideElement = TextElement | BulletElement | ImagePlaceholder | RectShape | TableBlock
-
-_VALID_TYPES = frozenset(
-    {"cover", "contents", "section", "content", "ending"}
+SlideElement = (
+    TextElement
+    | BulletElement
+    | ImagePlaceholder
+    | ImageElement
+    | ChartElement
+    | LineElement
+    | RectShape
+    | TableBlock
 )
+
+_VALID_TYPES = frozenset({
+    "cover", "contents", "section", "conclusion", "text", "image_text",
+    "cards", "comparison", "timeline", "process", "architecture",
+    "data_chart", "case", "quote", "interaction", "qa", "ending",
+    "content",
+})
 
 
 class SlideSpec(BaseModel):
@@ -125,6 +167,9 @@ class SlideSpec(BaseModel):
     page_type: str = Field(min_length=1)
     background_color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
     elements: list[SlideElement] = Field(default_factory=list, max_length=30)
+    speaker_notes: str = Field(default="", max_length=5_000)
+    source_references: list[str] = Field(default_factory=list, max_length=50)
+    transition: Literal["none", "fade"] = "none"
 
     @field_validator("page_type")
     @classmethod
