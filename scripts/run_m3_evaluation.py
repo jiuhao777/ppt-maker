@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 
 from pptmaker.m3.builder import build_pptx
-from pptmaker.m3.compiler import compile_specs
+from pptmaker.m3.compiler import compile_specs, normalize_layout
 from pptmaker.m3.design import PRESETS
 from pptmaker.m3.models import (
     ContentPlan, DesignPlan, SlideContent, SlideSpec,
@@ -22,26 +22,47 @@ def _element_box(el) -> Box:
 
 def evaluate(cases: list[dict]) -> dict:
     specs: list[SlideSpec] = []
+    layouts = set()
+    crashes = []
     for case in cases:
         pages = [
-            SlideContent(page_id=f"p{i}", title=p["title"], page_type=p.get("page_type", "content"),
-                         body_paragraphs=p.get("body", ["text"]), bullet_points=p.get("bullets", []),
-                         source_references=[])
+            SlideContent(
+                page_id=f"{case['id']}-p{i}",
+                title=p["title"],
+                page_type=p.get("page_type", "content"),
+                layout=p.get("layout", "text"),
+                body_paragraphs=p.get("body", ["text"]),
+                bullet_points=p.get("bullets", []),
+                image_suggestion=p.get("image_suggestion"),
+                table_rows=p.get("table_rows"),
+                source_references=[],
+            )
             for i, p in enumerate(case["pages"], start=1)
         ]
         plan = ContentPlan(project_id=case["id"], outline_version=1, slides=pages)
-        specs.extend(compile_specs(plan, _design()))
+        layouts.update(normalize_layout(page.layout) for page in pages)
+        try:
+            specs.extend(compile_specs(plan, _design()))
+        except Exception as exc:
+            crashes.append(type(exc).__name__)
 
-    # Build pptx
-    out = Path(tempfile.mktemp(suffix=".pptx"))
-    build_pptx(specs, _design(), out)
-
-    # Verify
     from pptx import Presentation
-    prs = Presentation(str(out))
-    slide_count_match = len(prs.slides) == sum(len(c["pages"]) for c in cases)
+    expected_slides = sum(len(c["pages"]) for c in cases)
+    with tempfile.TemporaryDirectory() as directory:
+        out = Path(directory) / "evaluation.pptx"
+        try:
+            build_pptx(specs, _design(), out)
+            prs = Presentation(str(out))
+        except Exception as exc:
+            crashes.append(type(exc).__name__)
+            prs = Presentation()
+        slide_count_match = len(prs.slides) == expected_slides
+        text_editable = any(
+            shape.has_text_frame and shape.text_frame.text
+            for slide in prs.slides
+            for shape in slide.shapes
+        )
 
-    # Geometry checks
     canvas = Box(0, 0, 13.333 * 914400, 7.5 * 914400)
     oob = 0
     overlap = 0
@@ -49,19 +70,17 @@ def evaluate(cases: list[dict]) -> dict:
     for spec in specs:
         for el in spec.elements:
             total_elements += 1
-            box = _element_box(el)
-            if out_of_bounds(box, canvas):
+            if out_of_bounds(_element_box(el), canvas):
                 oob += 1
-            boxes = [_element_box(e) for e in spec.elements]
-            for i, a in enumerate(boxes):
-                for b in boxes[i + 1:]:
-                    if overlap_ratio(a, b) >= 0.2:
-                        overlap += 1
-
-    text_editable = any(
-        s.has_text_frame and s.text_frame.text
-        for slide in prs.slides for s in slide.shapes
-    )
+        content_boxes = [
+            _element_box(element)
+            for element in spec.elements
+            if element.type != "rect"
+        ]
+        for i, first in enumerate(content_boxes):
+            for second in content_boxes[i + 1:]:
+                if overlap_ratio(first, second) >= 0.2:
+                    overlap += 1
 
     encoded = json.dumps({"slide_count_match": slide_count_match, "out_of_bounds_rate": 0.0},
                          ensure_ascii=False)
@@ -70,6 +89,9 @@ def evaluate(cases: list[dict]) -> dict:
     return {
         "schema_version": 1,
         "cases": len(cases),
+        "layouts_exercised": sorted(layouts),
+        "page_types_exercised": sorted({spec.page_type for spec in specs}),
+        "crashes": crashes,
         "slide_count_match": slide_count_match,
         "out_of_bounds_rate": oob / total_elements if total_elements else 0,
         "severe_overlap_rate": overlap / total_elements if total_elements else 0,

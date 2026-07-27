@@ -4,10 +4,14 @@
     "pages": [
       {"title": "封面", "page_type": "cover", "body": ["2026 Q2 工作汇报"]},
       {"title": "目录", "page_type": "contents", "bullets": ["概述", "成果", "规划"]},
-      {"title": "项目概述", "body": ["本季度完成了三项重点项目的交付"]},
-      {"title": "核心成果", "body": ["用户增长 30%"], "bullets": ["指标1", "指标2"]},
-      {"title": "风险与应对", "body": ["主要风险已识别并制定了应对方案"]},
-      {"title": "下季规划", "bullets": ["计划1", "计划2", "计划3"]},
+      {"title": "第一章", "page_type": "章节过渡"},
+      {"title": "项目概述", "layout": "text", "body": ["本季度完成了三项重点项目的交付"]},
+      {"title": "核心成果", "layout": "bullets", "bullets": ["指标1", "指标2"]},
+      {"title": "双栏信息", "layout": "two_column", "body": ["左侧内容"], "bullets": ["右侧内容"]},
+      {"title": "用户增长达到30%", "page_type": "数据", "layout": "big_number", "body": ["30%", "同比增长"]},
+      {"title": "方案对比", "layout": "comparison", "bullets": ["方案A", "方案B"]},
+      {"title": "指标表格", "layout": "table", "table_rows": [["指标", "结果"], ["增长", "30%"]]},
+      {"title": "保持聚焦", "page_type": "金句", "layout": "quote", "body": ["少即是多"]},
       {"title": "总结", "page_type": "ending", "body": ["感谢聆听"]}
     ]
   }

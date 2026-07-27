@@ -3,6 +3,18 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 
+REQUIRED_LAYOUTS = {
+    "text",
+    "bullets",
+    "two_column",
+    "big_number",
+    "comparison",
+    "table",
+    "quote",
+}
+REQUIRED_PAGE_TYPES = {"cover", "contents", "section", "content", "ending"}
+
+
 def check_m3_gate(artifact_dir: Path) -> list[str]:
     errors = []
     junit = artifact_dir / "pytest.xml"
@@ -24,6 +36,18 @@ def check_m3_gate(artifact_dir: Path) -> list[str]:
         return [*errors, "invalid evidence: evaluation.json"]
 
     checks = (
+        (
+            "missing layout coverage",
+            bool(REQUIRED_LAYOUTS - set(metrics.get("layouts_exercised", []))),
+        ),
+        (
+            "missing page type coverage",
+            bool(
+                REQUIRED_PAGE_TYPES
+                - set(metrics.get("page_types_exercised", []))
+            ),
+        ),
+        ("evaluation crashes", bool(metrics.get("crashes", ["missing"]))),
         ("slide count mismatch", not metrics.get("slide_count_match", False)),
         ("element out of bounds > 0%", metrics.get("out_of_bounds_rate", 0.01) > 0),
         ("severe overlap rate > 0%", metrics.get("severe_overlap_rate", 0.01) > 0),
