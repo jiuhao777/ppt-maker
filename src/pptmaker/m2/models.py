@@ -53,7 +53,7 @@ class RequirementField(BaseModel):
 
 class RequirementBrief(BaseModel):
     schema_version: Literal[1] = 1
-    project_id: str
+    project_id: str = ""
     purpose: RequirementField = Field(default_factory=RequirementField)
     audience: RequirementField = Field(default_factory=RequirementField)
     scenario: RequirementField = Field(default_factory=RequirementField)
