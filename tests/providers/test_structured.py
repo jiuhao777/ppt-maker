@@ -88,6 +88,22 @@ def test_second_invalid_result_returns_safe_error():
     assert len(client.completions.calls) == 3
 
 
+def test_invalid_model_content_is_not_exposed():
+    secret = "private material sk-123456"
+    client = FakeFactory([secret, secret, secret])
+
+    with pytest.raises(StructuredOutputError) as error:
+        StructuredModel(CONFIG, client).generate(
+            Answer,
+            "system",
+            "user",
+            "TEST_KEY",
+        )
+
+    assert secret not in str(error.value)
+    assert "sk-" not in str(error.value)
+
+
 def test_empty_response_gets_one_repair():
     client = FakeFactory(["", '{"value":"fixed"}', '{"value":"ignored"}'])
 

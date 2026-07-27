@@ -16,6 +16,7 @@ from pptmaker.projects import ProjectRepository
 from pptmaker.providers import ProviderConfig, StructuredModel
 from pptmaker.providers.structured import StructuredOutputError
 from pptmaker.research.repository import ResearchRepository
+from pptmaker.ui.state import safe_generation_message
 
 STYLE_OPTIONS = ["auto", "business", "academic", "creative", "minimal", "tech"]
 STYLE_LABELS = {
@@ -90,10 +91,10 @@ def render_m3_generation(project, projects: ProjectRepository) -> None:
             st.success(f"PPT 生成完成（{len(specs)} 页）")
             st.rerun()
 
-        except StructuredOutputError:
-            st.error("模型生成失败，请重试。")
+        except StructuredOutputError as exc:
+            st.error(safe_generation_message(exc))
         except Exception as exc:
-            st.error(f"生成失败：{exc}")
+            st.error(safe_generation_message(exc))
 
     # Show cached results
     if cache_key in st.session_state:

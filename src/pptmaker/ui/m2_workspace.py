@@ -32,6 +32,7 @@ from pptmaker.m2.workflow import build_m2_graph, initial_state
 from pptmaker.projects import ProjectRepository, ProjectUpdate
 from pptmaker.providers import ProviderConfig, StructuredModel
 from pptmaker.providers.structured import StructuredOutputError
+from pptmaker.ui.state import safe_generation_message
 from pptmaker.research.bocha import BochaSearch
 from pptmaker.research.repository import ResearchRepository
 from pptmaker.research.service import FreshnessService, SearchKeyRequired
@@ -690,7 +691,7 @@ def render_m2_workspace(
         from pptmaker.ui.m3_workspace import render_m3_generation
         render_m3_generation(project, projects)
     except StructuredOutputError as exc:
-        st.error(str(exc))
+        st.error(safe_generation_message(exc))
     except InvalidRework as exc:
         st.error(str(exc))
     except sqlite3.Error:
