@@ -48,6 +48,27 @@ class FreshnessService:
         self.repository.save_run(run)
         return run
 
+    def plan(
+        self,
+        project_id: str,
+        policy: WebPolicy,
+        extraction: RequirementExtraction,
+    ) -> ResearchRun:
+        purpose = str(extraction.brief.purpose.value or "")
+        decision = resolve_freshness(
+            policy,
+            purpose,
+            extraction.ai_freshness,
+        )
+        return self._save(
+            ResearchRun(
+                project_id=project_id,
+                policy=policy,
+                decision=decision,
+                status="PLANNED" if decision.requires_web else "NOT_REQUIRED",
+            )
+        )
+
     def run(
         self,
         project_id: str,

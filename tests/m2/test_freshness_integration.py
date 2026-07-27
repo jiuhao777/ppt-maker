@@ -122,6 +122,20 @@ def test_never_makes_no_search_call(tmp_path):
     assert search.queries == []
 
 
+def test_planning_persists_decision_without_search(tmp_path):
+    search = FakeSearch()
+    repository = ResearchRepository(tmp_path / "research.db")
+
+    run = FreshnessService(search, repository).plan(
+        "p1",
+        "AUTO",
+        extraction("current AI models", True),
+    )
+
+    assert run.status == "PLANNED"
+    assert search.queries == []
+
+
 class OutlineModel:
     def __init__(self):
         self.last_system = ""

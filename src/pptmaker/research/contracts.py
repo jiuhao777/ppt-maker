@@ -72,7 +72,7 @@ class ResearchRun(BaseModel):
     policy: WebPolicy
     decision: FreshnessDecision
     status: Literal[
-        "NOT_REQUIRED", "SKIPPED_NO_KEY", "COMPLETED", "FAILED"
+        "PLANNED", "NOT_REQUIRED", "SKIPPED_NO_KEY", "COMPLETED", "FAILED"
     ]
     fact_ids: list[str] = Field(default_factory=list)
     safe_error_type: str | None = Field(default=None, max_length=100)

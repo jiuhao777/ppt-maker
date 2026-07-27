@@ -35,6 +35,7 @@ from pptmaker.providers.structured import StructuredOutputError
 from pptmaker.ui.state import safe_generation_message
 from pptmaker.blueprint.generator import InvalidBlueprint
 from pptmaker.research.bocha import BochaSearch
+from pptmaker.research.post_outline import PostOutlineResearch
 from pptmaker.research.repository import ResearchRepository
 from pptmaker.research.service import FreshnessService, SearchKeyRequired
 from pptmaker.workflow.foundation import sqlite_checkpointer
@@ -158,16 +159,12 @@ class WorkspaceServices:
         )
 
     def generate_outline(self, project_id: str) -> int:
-        facts = ResearchRepository(self.projects.path).list_facts(
-            project_id,
-            active_only=True,
-        )
         generated = generate_outline(
             self.repository.get_brief(project_id),
             self.repository.list_chunks(project_id),
             _provider(),
             self.api_key,
-            facts=facts,
+            facts=[],
         )
         return self.repository.create_outline(generated).version
 
@@ -254,12 +251,10 @@ def _render_materials(project, projects, repository):
             current=repository.get_brief(project.id),
         )
         research = ResearchRepository(projects.path)
-        FreshnessService(BochaSearch(), research).run(
+        FreshnessService(BochaSearch(), research).plan(
             project.id,
             project.web_policy,
             extraction,
-            st.session_state.bocha_api_key,
-            freshness=st.session_state.get("search_freshness", "oneYear"),
         )
         brief = extraction.brief
         repository.save_brief(brief)
@@ -275,6 +270,9 @@ def _render_research_status(project, database):
     repository = ResearchRepository(database)
     run = repository.get_latest_run(project.id)
     if run is None:
+        return
+    if run.status == "PLANNED":
+        st.info(f"联网研究将在概览大纲批准后执行：{run.decision.reason}")
         return
     if run.status == "NOT_REQUIRED":
         st.caption(f"未联网：{run.decision.reason}")
@@ -576,6 +574,35 @@ def _render_outline(project, projects, repository):
             project.id, approved[-1].version
         )
         st.caption(f"已生成 {len(tasks)} 项联网研究任务。")
+        research_repository = ResearchRepository(projects.path)
+        run = research_repository.get_latest_run(project.id)
+        if (
+            run is not None
+            and run.decision.requires_web
+            and run.status != "COMPLETED"
+        ):
+            if st.button(
+                "执行联网研究",
+                key=f"m2_run_research_{project.id}_{approved[-1].version}",
+                type="primary",
+            ):
+                try:
+                    PostOutlineResearch(
+                        BochaSearch(), research_repository
+                    ).run(
+                        project.id,
+                        approved[-1],
+                        project.web_policy,
+                        run.decision,
+                        st.session_state.bocha_api_key,
+                        freshness=st.session_state.get(
+                            "search_freshness", "oneYear"
+                        ),
+                    )
+                except SearchKeyRequired:
+                    st.warning("请先在 API 设置中填写并验证博查 API Key。")
+                    return
+                st.rerun()
 
 
 def _render_rework(project, projects, repository, selected):
