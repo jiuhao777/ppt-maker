@@ -85,3 +85,62 @@ def test_approve_requires_asset_bound_to_blueprint_page(tmp_path):
     assets.approve("p1", "a1")
 
     assert repository.approve("p1", created.version).status == "APPROVED"
+
+
+def test_select_asset_updates_only_draft_page(tmp_path):
+    path = tmp_path / "db.sqlite"
+    repository = BlueprintRepository(path)
+    created = repository.create(blueprint(page_count=1))
+    assets = AssetRepository(path)
+    assets.replace_candidates(
+        "p1", created.version, "p1", [record(page_id="p1")]
+    )
+    assets.approve("p1", "a1")
+
+    updated = repository.select_asset(
+        "p1", created.version, "p1", "a1"
+    )
+
+    assert updated.pages[0].asset_ids == ["a1"]
+
+
+def test_set_page_no_image_clears_asset_and_visual_kind(tmp_path):
+    repository = BlueprintRepository(tmp_path / "db.sqlite")
+    draft = blueprint(page_count=1)
+    draft = draft.model_copy(
+        update={
+            "pages": [
+                draft.pages[0].model_copy(update={"asset_ids": ["old"]})
+            ]
+        }
+    )
+    created = repository.create(draft)
+
+    updated = repository.set_page_no_image(
+        "p1", created.version, "p1"
+    )
+
+    assert updated.pages[0].asset_ids == []
+    assert updated.pages[0].visual.kind == "none"
+
+
+def test_image_page_cannot_be_approved_without_asset_choice(tmp_path):
+    repository = BlueprintRepository(tmp_path / "db.sqlite")
+    draft = blueprint(page_count=1)
+    draft = draft.model_copy(
+        update={
+            "pages": [
+                draft.pages[0].model_copy(
+                    update={
+                        "visual": draft.pages[0].visual.model_copy(
+                            update={"kind": "photo"}
+                        )
+                    }
+                )
+            ]
+        }
+    )
+    created = repository.create(draft)
+
+    with pytest.raises(ValueError, match="image page"):
+        repository.approve("p1", created.version)

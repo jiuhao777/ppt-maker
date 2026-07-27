@@ -72,6 +72,18 @@ def test_export_import_preserves_web_policy(tmp_path):
     assert imported.web_policy == "NEVER"
 
 
+def test_export_import_preserves_asset_license_mode(tmp_path):
+    source = ProjectRepository(tmp_path / "source-assets.db")
+    project = source.create(
+        ProjectCreate(name="Assets", asset_license_mode="LOOSE")
+    )
+    target = ProjectRepository(tmp_path / "target-assets.db")
+
+    imported = import_project(export_project(project), target)
+
+    assert imported.asset_license_mode == "LOOSE"
+
+
 @pytest.mark.parametrize(
     "payload",
     [

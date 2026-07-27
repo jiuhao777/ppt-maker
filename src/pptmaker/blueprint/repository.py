@@ -129,6 +129,13 @@ class BlueprintRepository:
                 raise ValueError("blueprint is not an approvable draft")
             draft = DeckBlueprint.model_validate_json(row[0])
             for page in draft.pages:
+                if (
+                    page.visual.kind in {"photo", "illustration"}
+                    and not page.asset_ids
+                ):
+                    raise ValueError(
+                        "image page requires an approved asset or no-image plan"
+                    )
                 approved_assets = {
                     item.id
                     for item in assets.list_for_blueprint(
@@ -173,4 +180,78 @@ class BlueprintRepository:
                     "change_summary": f"恢复自 v{version}",
                 }
             )
+        )
+
+    def _update_draft_page(
+        self,
+        project_id: str,
+        version: int,
+        page_id: str,
+        transform,
+    ) -> DeckBlueprint:
+        draft = self.get(project_id, version)
+        if draft is None or draft.status != "DRAFT":
+            raise ValueError("blueprint is not an editable draft")
+        if page_id not in {page.page_id for page in draft.pages}:
+            raise KeyError(page_id)
+        updated = draft.model_copy(
+            update={
+                "pages": [
+                    transform(page) if page.page_id == page_id else page
+                    for page in draft.pages
+                ]
+            }
+        )
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE blueprints SET payload = ? "
+                "WHERE project_id = ? AND version = ? AND status = 'DRAFT'",
+                (updated.model_dump_json(), project_id, version),
+            )
+        return updated
+
+    def select_asset(
+        self,
+        project_id: str,
+        version: int,
+        page_id: str,
+        asset_id: str,
+    ) -> DeckBlueprint:
+        assets = AssetRepository(self.path)
+        approved = {
+            item.id
+            for item in assets.list_for_blueprint(
+                project_id, version, page_id
+            )
+            if item.status == "APPROVED"
+        }
+        if asset_id not in approved:
+            raise ValueError("asset is not approved for this page")
+        return self._update_draft_page(
+            project_id,
+            version,
+            page_id,
+            lambda page: page.model_copy(
+                update={"asset_ids": [asset_id]}
+            ),
+        )
+
+    def set_page_no_image(
+        self,
+        project_id: str,
+        version: int,
+        page_id: str,
+    ) -> DeckBlueprint:
+        return self._update_draft_page(
+            project_id,
+            version,
+            page_id,
+            lambda page: page.model_copy(
+                update={
+                    "asset_ids": [],
+                    "visual": page.visual.model_copy(
+                        update={"kind": "none"}
+                    ),
+                }
+            ),
         )

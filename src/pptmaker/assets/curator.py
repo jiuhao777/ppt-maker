@@ -50,12 +50,16 @@ class AssetCurator:
         project_id: str,
         blueprint: DeckBlueprint,
         license_mode: LicenseMode,
+        *,
+        page_ids: set[str] | None = None,
     ) -> CurationResult:
         if blueprint.project_id != project_id:
             raise ValueError("blueprint project does not match")
         counts = {}
         failures = {}
         for page in blueprint.pages:
+            if page_ids is not None and page.page_id not in page_ids:
+                continue
             if (
                 page.visual.kind not in {"photo", "illustration"}
                 or not page.asset_search_query.strip()

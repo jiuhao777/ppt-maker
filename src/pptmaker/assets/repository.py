@@ -49,6 +49,15 @@ class AssetRepository:
             raise ValueError("asset project, blueprint, or page does not match")
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            approved_ids = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT id FROM assets WHERE project_id = ? "
+                    "AND blueprint_version = ? AND page_id = ? "
+                    "AND status = 'APPROVED'",
+                    (project_id, blueprint_version, page_id),
+                ).fetchall()
+            }
             connection.execute(
                 "DELETE FROM assets WHERE project_id = ? "
                 "AND blueprint_version = ? AND page_id = ? "
@@ -67,6 +76,7 @@ class AssetRepository:
                         item.model_dump_json(),
                     )
                     for item in records
+                    if item.id not in approved_ids
                 ],
             )
 

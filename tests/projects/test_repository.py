@@ -121,3 +121,18 @@ def test_project_web_policy_round_trips(tmp_path):
 
     assert updated.web_policy == "NEVER"
     assert repository.get(project.id).web_policy == "NEVER"
+
+
+def test_project_asset_license_mode_round_trips(tmp_path):
+    repository = ProjectRepository(tmp_path / "db.sqlite")
+    project = repository.create(
+        ProjectCreate(name="Assets", asset_license_mode="LOOSE")
+    )
+
+    assert project.asset_license_mode == "LOOSE"
+    updated = repository.update(
+        project.id,
+        ProjectUpdate(asset_license_mode="STRICT"),
+        expected_version=project.version,
+    )
+    assert updated.asset_license_mode == "STRICT"

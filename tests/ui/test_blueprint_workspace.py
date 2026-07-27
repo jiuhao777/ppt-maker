@@ -1,5 +1,7 @@
+from PIL import Image
 from streamlit.testing.v1 import AppTest
 
+from pptmaker.assets.repository import AssetRepository
 from pptmaker.blueprint.models import DeckBlueprint
 from pptmaker.blueprint.repository import BlueprintRepository
 from pptmaker.m2.models import (
@@ -15,6 +17,7 @@ from pptmaker.ui.blueprint_workspace import (
     queue_blueprint_version,
 )
 from tests.blueprint.factories import blueprint
+from tests.assets.test_models import record
 
 
 def _approved_outline_project(monkeypatch, tmp_path):
@@ -104,3 +107,58 @@ def test_blueprint_version_label_contains_status():
     )
 
     assert blueprint_version_label(candidate) == "v2 · APPROVED"
+
+
+def test_verified_asset_can_be_selected_and_survives_rerun(
+    monkeypatch,
+    tmp_path,
+):
+    project, projects = _approved_outline_project(monkeypatch, tmp_path)
+    draft = blueprint(page_count=1).model_copy(
+        update={"project_id": project.id, "outline_version": 1}
+    )
+    draft = draft.model_copy(
+        update={
+            "pages": [
+                draft.pages[0].model_copy(
+                    update={
+                        "visual": draft.pages[0].visual.model_copy(
+                            update={"kind": "photo"}
+                        ),
+                        "asset_search_query": "factory",
+                    }
+                )
+            ]
+        }
+    )
+    blueprints = BlueprintRepository(projects.path)
+    created = blueprints.create(draft)
+    image_path = tmp_path / "verified.png"
+    Image.new("RGB", (640, 360), "blue").save(image_path)
+    assets = AssetRepository(projects.path)
+    assets.replace_candidates(
+        project.id,
+        created.version,
+        "p1",
+        [
+            record(
+                project_id=project.id,
+                blueprint_version=created.version,
+                page_id="p1",
+                local_path=str(image_path),
+                mime_type="image/png",
+                content_hash="a" * 64,
+                byte_size=image_path.stat().st_size,
+            )
+        ],
+    )
+
+    app = AppTest.from_file("src/pptmaker/ui/app.py").run(timeout=10)
+    button = next(
+        item for item in app.button if item.label == "选择此图片"
+    )
+    app = button.click().run(timeout=10)
+
+    assert not app.exception
+    selected = blueprints.get(project.id, created.version)
+    assert selected.pages[0].asset_ids == ["a1"]

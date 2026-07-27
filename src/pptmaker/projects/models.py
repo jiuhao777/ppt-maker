@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pptmaker.assets.models import LicenseMode
 from pptmaker.research.contracts import WebPolicy
 
 
@@ -36,6 +37,7 @@ class ProjectCreate(BaseModel):
     execution_state: ExecutionState = "IDLE"
     execution_lease_expires_at: datetime | None = None
     web_policy: WebPolicy = "AUTO"
+    asset_license_mode: LicenseMode = "STRICT"
 
 
 class ProjectUpdate(BaseModel):
@@ -45,6 +47,7 @@ class ProjectUpdate(BaseModel):
     execution_state: ExecutionState | None = None
     execution_lease_expires_at: datetime | None = None
     web_policy: WebPolicy | None = None
+    asset_license_mode: LicenseMode | None = None
 
 
 class Project(BaseModel):
@@ -59,6 +62,7 @@ class Project(BaseModel):
     created_at: datetime
     updated_at: datetime
     web_policy: WebPolicy = "AUTO"
+    asset_license_mode: LicenseMode = "STRICT"
 
 
 class ProjectExport(BaseModel):
@@ -73,3 +77,4 @@ class ProjectExport(BaseModel):
     created_at: datetime
     updated_at: datetime
     web_policy: WebPolicy = "AUTO"
+    asset_license_mode: LicenseMode = "STRICT"

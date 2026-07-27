@@ -2,6 +2,13 @@ from collections.abc import MutableMapping
 
 import streamlit as st
 
+from pptmaker.assets.curator import AssetCurator
+from pptmaker.assets.providers import (
+    FallbackAssetSearch,
+    OpenverseProvider,
+    WikimediaProvider,
+)
+from pptmaker.assets.repository import AssetRepository
 from pptmaker.blueprint.generator import generate_blueprint
 from pptmaker.blueprint.models import DeckBlueprint
 from pptmaker.blueprint.quality import review_blueprint
@@ -31,6 +38,94 @@ STYLE_OPTIONS = [
     "minimal",
     "tech",
 ]
+
+
+def _curate_assets(project, projects, blueprint, page_ids=None):
+    return AssetCurator(
+        FallbackAssetSearch(OpenverseProvider(), WikimediaProvider()),
+        AssetRepository(projects.path),
+        projects.path.parent / "assets",
+    ).curate(
+        project.id,
+        blueprint,
+        project.asset_license_mode,
+        page_ids=page_ids,
+    )
+
+
+def _render_asset_candidates(
+    project,
+    projects,
+    blueprint_repository,
+    blueprint,
+):
+    assets = AssetRepository(projects.path)
+    records = assets.list_for_blueprint(
+        project.id, blueprint.version
+    )
+    by_page = {}
+    for item in records:
+        by_page.setdefault(item.page_id, []).append(item)
+    errors = assets.list_errors(project.id, blueprint.version)
+
+    for page in blueprint.pages:
+        if page.visual.kind not in {"photo", "illustration"}:
+            continue
+        st.markdown(f"#### 第 {page.order} 页候选图片")
+        if page.page_id in errors:
+            st.warning(errors[page.page_id])
+        candidates = by_page.get(page.page_id, [])
+        if not candidates:
+            st.info("暂无通过安全验证的候选图片。")
+        for item in candidates:
+            if item.local_path:
+                st.image(item.local_path, width=320)
+            st.caption(
+                f"{item.creator or '作者未知'} · "
+                f"{item.license_name or '许可未知'}"
+            )
+            st.markdown(f"[查看原始来源]({item.landing_url})")
+            if item.license_mode == "LOOSE":
+                st.warning("宽松素材：请在使用前自行确认许可风险。")
+            if item.status == "APPROVED":
+                st.success("已选择")
+            elif st.button(
+                "选择此图片",
+                key=(
+                    f"asset_select_{project.id}_{blueprint.version}_"
+                    f"{page.page_id}_{item.id}"
+                ),
+            ):
+                assets.approve(project.id, item.id)
+                blueprint_repository.select_asset(
+                    project.id,
+                    blueprint.version,
+                    page.page_id,
+                    item.id,
+                )
+                st.rerun()
+        if st.button(
+            "重新搜索本页",
+            key=(
+                f"asset_retry_{project.id}_{blueprint.version}_"
+                f"{page.page_id}"
+            ),
+        ):
+            _curate_assets(
+                project, projects, blueprint, {page.page_id}
+            )
+            st.rerun()
+        if st.button(
+            "改为无图版式",
+            key=(
+                f"asset_none_{project.id}_{blueprint.version}_"
+                f"{page.page_id}"
+            ),
+        ):
+            blueprint_repository.set_page_no_image(
+                project.id, blueprint.version, page.page_id
+            )
+            st.rerun()
 
 
 def queue_blueprint_version(
@@ -121,6 +216,7 @@ def render_blueprint_workspace(
                 st.session_state.api_key,
             )
             created = repository.create(draft)
+            _curate_assets(project, projects, created)
             queue_blueprint_version(
                 st.session_state,
                 project.id,
@@ -158,6 +254,12 @@ def render_blueprint_workspace(
             st.caption(section.audience_question)
 
     if selected.status == "DRAFT":
+        _render_asset_candidates(
+            project,
+            projects,
+            repository,
+            selected,
+        )
         known_fact_ids = {fact.id for fact in active_facts}
         with st.form(
             f"blueprint_editor_{project.id}_{selected.version}"
@@ -284,8 +386,12 @@ def render_blueprint_workspace(
         ):
             review = review_blueprint(selected, known_fact_ids)
             if review.passed:
-                repository.approve(project.id, selected.version)
-                st.rerun()
+                try:
+                    repository.approve(project.id, selected.version)
+                except ValueError as exc:
+                    st.error(str(exc))
+                else:
+                    st.rerun()
             else:
                 st.error(
                     "详细大纲未通过质量检查："

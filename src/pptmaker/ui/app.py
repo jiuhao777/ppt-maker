@@ -206,6 +206,18 @@ def _project_workspace(repository: ProjectRepository) -> None:
             }.get,
             key=f"web_policy_{project.id}",
         )
+        asset_license_mode = st.selectbox(
+            "图片素材许可模式",
+            ["STRICT", "LOOSE"],
+            index=["STRICT", "LOOSE"].index(project.asset_license_mode),
+            format_func={
+                "STRICT": "严格模式（仅可复用许可）",
+                "LOOSE": "宽松模式（显示来源、作者与风险）",
+            }.get,
+            key=f"asset_license_mode_{project.id}",
+        )
+        if asset_license_mode == "LOOSE":
+            st.warning("宽松模式可能包含受限素材，使用前请自行确认许可。")
         if st.button("保存项目设置", icon=":material/save:"):
             try:
                 repository.update(
@@ -213,6 +225,7 @@ def _project_workspace(repository: ProjectRepository) -> None:
                     ProjectUpdate(
                         last_provider_preset=selected_provider,
                         web_policy=web_policy,
+                        asset_license_mode=asset_license_mode,
                     ),
                     expected_version=project.version,
                 )
