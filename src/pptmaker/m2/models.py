@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 BusinessState = Literal[
@@ -38,10 +38,17 @@ ReworkMode = Literal["global", "local"]
 
 
 class RequirementField(BaseModel):
-    value: str | int | None = None
+    value: str | None = None
     confidence: float = Field(default=0.0, ge=0, le=1)
     source: str | None = None
     assumed: bool = False
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def _coerce_number_to_string(cls, v):
+        if isinstance(v, (int, float)):
+            return str(v)
+        return v
 
 
 class RequirementBrief(BaseModel):
