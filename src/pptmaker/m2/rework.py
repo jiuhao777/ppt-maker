@@ -152,5 +152,23 @@ def apply_rework(
     )
     reflection = reflect_outline(brief, candidate, scope_page_ids=set(impact.impacted_page_ids))
     if not reflection.passed:
-        raise InvalidRework("返工结果未通过质量检查")
+        # one retry with defects
+        draft = model.generate(
+            DeckOutlineDraft,
+            f"修正以下缺陷：{', '.join(reflection.defects)}。不得引入新问题。",
+            json.dumps({"outline": candidate.model_dump(mode="json"), "defects": reflection.defects},
+                       ensure_ascii=False)[:50_000],
+            api_key,
+        )
+        validate_rework_scope(current, draft, impact)
+        candidate = DeckOutline(
+            project_id=current.project_id,
+            version=current.version + 1,
+            status="DRAFT",
+            parent_version=current.version,
+            **draft.model_dump(),
+        )
+        reflection = reflect_outline(brief, candidate, scope_page_ids=set(impact.impacted_page_ids))
+        if not reflection.passed:
+            raise InvalidRework(f"返工结果未通过质量检查: {', '.join(reflection.defects)}")
     return draft
