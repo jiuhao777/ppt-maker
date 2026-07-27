@@ -2,6 +2,10 @@
 
 > 文档状态：产品构想定稿版（开发前）  
 > 项目目标：打造一个真实好用、可评测、可演示、可开源，并足以作为 AI Agent 求职核心项目的 PPT 生成系统。
+>
+> 当前实施基线（2026-07-27）：两阶段大纲、Deck Blueprint、联网素材与质量恢复以
+> [`docs/superpowers/specs/2026-07-27-product-quality-recovery-design.md`](docs/superpowers/specs/2026-07-27-product-quality-recovery-design.md)
+> 为准；本文后续里程碑状态和早期 UI/流程描述仅保留为产品构想历史。
 
 ## 1. 项目定位
 
