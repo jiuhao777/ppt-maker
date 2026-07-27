@@ -6,6 +6,7 @@ from pptmaker.m3.models import (
     RectShape,
     SlideContent,
     SlideSpec,
+    TableBlock,
     TextElement,
 )
 
@@ -17,6 +18,36 @@ MARGIN_X = 0.7
 MARGIN_Y = 0.5
 TITLE_H = 1.0
 GAP = 0.15
+PAGE_TYPE_ALIASES = {
+    "封面": "cover",
+    "目录": "contents",
+    "章节": "section",
+    "章节过渡": "section",
+    "内容": "content",
+    "数据": "content",
+    "案例": "content",
+    "金句": "content",
+    "结尾": "ending",
+}
+VALID_LAYOUTS = {
+    "text",
+    "bullets",
+    "two_column",
+    "big_number",
+    "comparison",
+    "table",
+    "quote",
+}
+
+
+def normalize_page_type(value: str) -> str:
+    normalized = value.strip().lower()
+    return PAGE_TYPE_ALIASES.get(normalized, normalized)
+
+
+def normalize_layout(value: str) -> str:
+    normalized = value.strip().lower()
+    return normalized if normalized in VALID_LAYOUTS else "text"
 
 
 def compile_specs(content: ContentPlan, design: DesignPlan) -> list[SlideSpec]:
@@ -26,25 +57,30 @@ def compile_specs(content: ContentPlan, design: DesignPlan) -> list[SlideSpec]:
 def _compile_slide(slide: SlideContent, order: int, design: DesignPlan) -> SlideSpec:
     bg = design.palette.background
     font = design.fonts
+    page_type = normalize_page_type(slide.page_type)
+    layout = normalize_layout(slide.layout)
 
-    if slide.page_type == "cover":
+    if page_type == "cover":
         elements = _cover(slide, font, design)
-    elif slide.page_type == "section":
-        elements = _section(slide, font, design)
-    elif slide.page_type == "ending":
+    elif page_type == "section":
+        elements = _section(slide, order, font, design)
+    elif page_type == "ending":
         elements = _ending(slide, font)
-    elif slide.page_type == "contents":
+    elif page_type == "contents":
         elements = _contents(slide, font, design)
     else:
-        elements = _content(slide, font, design) if slide.layout == "text" else \
-                   _bullets_layout(slide, font, design) if slide.layout == "bullets" else \
-                   _two_column(slide, font, design) if slide.layout == "two_column" else \
-                   _big_number(slide, font, design) if slide.layout == "big_number" else \
-                   _comparison(slide, font, design) if slide.layout == "comparison" else \
-                   _table_layout(slide, font, design) if slide.layout == "table" else \
-                   _quote_layout(slide, font, design)
+        handlers = {
+            "text": _content,
+            "bullets": _bullets_layout,
+            "two_column": _two_column,
+            "big_number": _big_number,
+            "comparison": _comparison,
+            "table": _table_layout,
+            "quote": _quote_layout,
+        }
+        elements = handlers[layout](slide, font, design)
 
-    return SlideSpec(page_id=slide.page_id, order=order, page_type=slide.page_type,
+    return SlideSpec(page_id=slide.page_id, order=order, page_type=page_type,
                      background_color=bg, elements=elements)
 
 
@@ -60,9 +96,9 @@ def _cover(slide: SlideContent, font, design: DesignPlan) -> list:
     return el
 
 
-def _section(slide: SlideContent, font, design) -> list:
+def _section(slide: SlideContent, order: int, font, design) -> list:
     el = []
-    el.append(_text(str(slide.order), MARGIN_X, 2.0, 3.0, 1.2,
+    el.append(_text(str(order), MARGIN_X, 2.0, 3.0, 1.2,
                     font.title_size + 12, font.title_zh, bold=True))
     el.append(_text(slide.title, MARGIN_X, 3.5, CANVAS_W - 2 * MARGIN_X, 0.8,
                     font.title_size, font.title_zh, bold=True))

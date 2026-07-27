@@ -1,3 +1,5 @@
+import pytest
+
 from pptmaker.m3.models import (
     BulletElement,
     ContentPlan,
@@ -6,9 +8,14 @@ from pptmaker.m3.models import (
     RectShape,
     SlideContent,
     SlideSpec,
+    TableBlock,
     TextElement,
 )
-from pptmaker.m3.compiler import compile_specs
+from pptmaker.m3.compiler import (
+    compile_specs,
+    normalize_layout,
+    normalize_page_type,
+)
 from pptmaker.evaluation.geometry import Box, out_of_bounds, overlap_ratio
 
 
@@ -27,6 +34,53 @@ def _page(page_id: str, order: int, title: str, page_type: str = "content", layo
 
 
 class TestCompileSpecs:
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("封面", "cover"),
+            ("目录", "contents"),
+            ("章节过渡", "section"),
+            ("内容", "content"),
+            ("数据", "content"),
+            ("案例", "content"),
+            ("金句", "content"),
+            ("结尾", "ending"),
+        ],
+    )
+    def test_page_type_aliases_are_normalized(self, raw, expected):
+        assert normalize_page_type(raw) == expected
+
+    def test_section_uses_compiler_order(self):
+        spec = compile_specs(
+            _content([_page("s", 1, "第一章", page_type="章节过渡")]),
+            _design(),
+        )[0]
+        assert spec.page_type == "section"
+        assert any(
+            element.type == "text" and element.text == "1"
+            for element in spec.elements
+        )
+
+    def test_table_layout_compiles_table_block(self):
+        spec = compile_specs(
+            _content(
+                [
+                    _page(
+                        "t",
+                        1,
+                        "对比结果",
+                        layout="table",
+                        table_rows=[["项目", "结果"], ["A", "10"]],
+                    )
+                ]
+            ),
+            _design(),
+        )[0]
+        assert any(isinstance(element, TableBlock) for element in spec.elements)
+
+    def test_unknown_layout_falls_back_to_text(self):
+        assert normalize_layout("unknown-from-model") == "text"
+
     def test_output_matches_input_page_count(self):
         pages = [_page(f"p{i}", i, f"Page {i}") for i in range(1, 4)]
         specs = compile_specs(_content(pages), _design())
