@@ -1,11 +1,14 @@
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
+from PIL import Image
 from pptx import Presentation
 from pptx.util import Inches
 
 from pptmaker.m3.models import (
-    SlideSpec, TextElement, BulletElement, ImagePlaceholder, RectShape, TableBlock,
+    SlideSpec, TextElement, BulletElement, ImagePlaceholder, ImageElement,
+    ChartElement, LineElement, RectShape, TableBlock,
     DesignPlan, ColorPalette, FontSet,
 )
 from pptmaker.m3.builder import build_pptx
@@ -72,14 +75,13 @@ class TestBuilder:
         prs = Presentation(str(out))
         assert len(prs.slides[0].shapes) >= 1
 
-    def test_image_placeholder_renders(self, tmp_path):
+    def test_image_placeholder_is_rejected(self, tmp_path):
         out = tmp_path / "out.pptx"
         el = ImagePlaceholder(type="image_placeholder", x=1.0, y=1.0, width=3.0, height=2.0,
                               description="chart")
-        build_pptx([_spec(elements=[el])], _design(), out)
-        prs = Presentation(str(out))
-        shapes = prs.slides[0].shapes
-        assert any(s.has_text_frame and "chart" in s.text_frame.text for s in shapes)
+        with pytest.raises(ValueError, match="placeholders"):
+            build_pptx([_spec(elements=[el])], _design(), out)
+        assert not out.exists()
 
     def test_table_renders(self, tmp_path):
         out = tmp_path / "out.pptx"
@@ -89,3 +91,64 @@ class TestBuilder:
         prs = Presentation(str(out))
         tables = [s for s in prs.slides[0].shapes if s.has_table]
         assert len(tables) == 1
+
+    def test_verified_image_is_cropped_not_stretched(self, tmp_path):
+        image_path = tmp_path / "wide.png"
+        Image.new("RGB", (1200, 400), "blue").save(image_path)
+        element = ImageElement(
+            path=str(image_path), x=1, y=1, width=4, height=3
+        )
+        out = build_pptx(
+            [_spec(elements=[element])], _design(), tmp_path / "out.pptx"
+        )
+        picture = Presentation(str(out)).slides[0].shapes[0]
+        assert picture.crop_left > 0
+        assert picture.crop_left == pytest.approx(picture.crop_right)
+
+    def test_native_chart_remains_editable(self, tmp_path):
+        element = ChartElement(
+            chart_type="column",
+            categories=["A", "B"],
+            series={"Value": [1, 2]},
+            x=1,
+            y=1,
+            width=6,
+            height=4,
+        )
+        out = build_pptx(
+            [_spec(elements=[element])], _design(), tmp_path / "out.pptx"
+        )
+        assert Presentation(str(out)).slides[0].shapes[0].has_chart
+
+    def test_notes_sources_footer_line_and_transition(self, tmp_path):
+        line = LineElement(
+            x=1, y=2, width=4, height=0, color="#FF0000"
+        )
+        spec = _spec(
+            elements=[line],
+            speaker_notes="Talk track",
+            source_references=["Report · https://example.com"],
+            transition="fade",
+        )
+        out = build_pptx([spec], _design(), tmp_path / "out.pptx")
+        reopened = Presentation(str(out))
+        notes = reopened.slides[0].notes_slide.notes_text_frame.text
+        assert "Talk track" in notes
+        assert "[Sources]" in notes
+        assert "来源：" in reopened.slides[0].shapes[-1].text
+        with ZipFile(out) as archive:
+            xml = archive.read("ppt/slides/slide1.xml").decode("utf-8")
+        assert "<p:transition>" in xml and "<p:fade" in xml
+
+    def test_missing_image_leaves_no_published_file(self, tmp_path):
+        out = tmp_path / "out.pptx"
+        element = ImageElement(
+            path=str(tmp_path / "missing.png"),
+            x=1,
+            y=1,
+            width=4,
+            height=3,
+        )
+        with pytest.raises(ValueError, match="missing"):
+            build_pptx([_spec(elements=[element])], _design(), out)
+        assert not out.exists()
