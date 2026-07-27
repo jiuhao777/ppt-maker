@@ -1,7 +1,13 @@
 import httpx
 import pytest
 
-from pptmaker.security.fetcher import SafeFetchPolicy, UnsafeUrl, safe_fetch, validate_target
+from pptmaker.security.fetcher import (
+    SafeFetchPolicy,
+    UnsafeUrl,
+    safe_fetch,
+    safe_fetch_result,
+    validate_target,
+)
 
 
 PUBLIC_IP = "93.184.216.34"
@@ -99,3 +105,22 @@ def test_fetches_allowed_mime_within_limit():
     assert safe_fetch(
         "https://example.com/image.png", public_resolver, SafeFetchPolicy(), transport
     ) == b"png"
+
+
+def test_fetch_result_preserves_validated_content_type():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            content=b"png",
+            headers={"Content-Type": "image/png; charset=binary"},
+            request=request,
+        )
+    )
+    result = safe_fetch_result(
+        "https://example.com/image.png",
+        public_resolver,
+        SafeFetchPolicy(),
+        transport,
+    )
+    assert result.content == b"png"
+    assert result.content_type == "image/png"

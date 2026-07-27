@@ -15,6 +15,13 @@ class UnsafeUrl(ValueError):
 
 
 @dataclass(frozen=True)
+class SafeFetchResult:
+    content: bytes
+    content_type: str
+    final_url: str
+
+
+@dataclass(frozen=True)
 class SafeFetchPolicy:
     allowed_ports: tuple[int, ...] = (80, 443)
     allowed_content_types: tuple[str, ...] = (
@@ -103,6 +110,22 @@ def safe_fetch(
     transport: httpx.BaseTransport | None = None,
     connector: Connector | None = None,
 ) -> bytes:
+    return safe_fetch_result(
+        url,
+        resolver,
+        policy,
+        transport,
+        connector,
+    ).content
+
+
+def safe_fetch_result(
+    url: str,
+    resolver: Resolver,
+    policy: SafeFetchPolicy,
+    transport: httpx.BaseTransport | None = None,
+    connector: Connector | None = None,
+) -> SafeFetchResult:
     timeout = httpx.Timeout(policy.timeout_seconds)
     current = url
     production_connector = connector or (
@@ -146,7 +169,11 @@ def safe_fetch(
                     if total > policy.max_response_bytes:
                         raise UnsafeUrl("response exceeds size limit")
                     chunks.append(chunk)
-                return b"".join(chunks)
+                return SafeFetchResult(
+                    content=b"".join(chunks),
+                    content_type=content_type,
+                    final_url=current,
+                )
     raise UnsafeUrl("redirect loop")
 
 
