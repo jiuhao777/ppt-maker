@@ -49,7 +49,7 @@ class StructuredModel:
             {"role": "user", "content": user},
         ]
 
-        for attempt in range(2):
+        for attempt in range(3):
             try:
                 response = client.chat.completions.create(
                     model=self.config.model,
@@ -65,7 +65,7 @@ class StructuredModel:
                 content = getattr(response.choices[0].message, "content", None)
                 return schema.model_validate_json(content)
             except (AttributeError, IndexError, ValidationError, TypeError) as exc:
-                if attempt == 1:
+                if attempt == 2:
                     raise StructuredOutputError(
                         "invalid_structure",
                         "模型未返回有效的结构化结果。",

@@ -58,7 +58,7 @@ def test_valid_json_needs_one_request():
 
 
 def test_invalid_json_gets_exactly_one_repair():
-    client = FakeFactory(["not json", '{"value":"fixed"}'])
+    client = FakeFactory(["not json", '{"value":"fixed"}', '{"value":"ignored"}'])
 
     result = StructuredModel(CONFIG, client).generate(
         Answer,
@@ -73,7 +73,7 @@ def test_invalid_json_gets_exactly_one_repair():
 
 
 def test_second_invalid_result_returns_safe_error():
-    client = FakeFactory(["not json", '{"wrong":"shape"}'])
+    client = FakeFactory(["not json", '{"wrong":"shape"}', '{"still":"bad"}'])
 
     with pytest.raises(StructuredOutputError) as error:
         StructuredModel(CONFIG, client).generate(
@@ -85,11 +85,11 @@ def test_second_invalid_result_returns_safe_error():
 
     assert error.value.category == "invalid_structure"
     assert "TEST_KEY" not in str(error.value)
-    assert len(client.completions.calls) == 2
+    assert len(client.completions.calls) == 3
 
 
 def test_empty_response_gets_one_repair():
-    client = FakeFactory(['', '{"value":"fixed"}'])
+    client = FakeFactory(["", '{"value":"fixed"}', '{"value":"ignored"}'])
 
     result = StructuredModel(CONFIG, client).generate(
         Answer,
