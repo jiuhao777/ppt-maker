@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 
+from pptmaker.assets.repository import AssetRepository
 from pptmaker.blueprint.models import DeckBlueprint
 
 
@@ -116,6 +117,7 @@ class BlueprintRepository:
         return [DeckBlueprint.model_validate_json(row[0]) for row in rows]
 
     def approve(self, project_id: str, version: int) -> DeckBlueprint:
+        assets = AssetRepository(self.path)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
@@ -125,6 +127,19 @@ class BlueprintRepository:
             ).fetchone()
             if row is None:
                 raise ValueError("blueprint is not an approvable draft")
+            draft = DeckBlueprint.model_validate_json(row[0])
+            for page in draft.pages:
+                approved_assets = {
+                    item.id
+                    for item in assets.list_for_blueprint(
+                        project_id, version, page.page_id
+                    )
+                    if item.status == "APPROVED"
+                }
+                if not set(page.asset_ids).issubset(approved_assets):
+                    raise ValueError(
+                        "blueprint references an unapproved asset"
+                    )
             for old_version, payload in connection.execute(
                 "SELECT version, payload FROM blueprints "
                 "WHERE project_id = ? AND status = 'APPROVED'",
@@ -141,7 +156,7 @@ class BlueprintRepository:
                 connection,
                 project_id,
                 version,
-                DeckBlueprint.model_validate_json(row[0]),
+                draft,
                 "APPROVED",
             )
         return approved

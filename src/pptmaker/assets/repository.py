@@ -9,7 +9,7 @@ class AssetRepository:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
-            connection.execute(
+            connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS assets (
                     project_id TEXT NOT NULL,
@@ -19,7 +19,14 @@ class AssetRepository:
                     status TEXT NOT NULL,
                     payload TEXT NOT NULL,
                     PRIMARY KEY (project_id, id)
-                )
+                );
+                CREATE TABLE IF NOT EXISTS asset_curation_errors (
+                    project_id TEXT NOT NULL,
+                    blueprint_version INTEGER NOT NULL,
+                    page_id TEXT NOT NULL,
+                    error_type TEXT NOT NULL,
+                    PRIMARY KEY (project_id, blueprint_version, page_id)
+                );
                 """
             )
 
@@ -120,3 +127,40 @@ class AssetRepository:
                     ),
                 )
         return selected
+
+    def set_page_error(
+        self,
+        project_id: str,
+        blueprint_version: int,
+        page_id: str,
+        error_type: str | None,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM asset_curation_errors WHERE project_id = ? "
+                "AND blueprint_version = ? AND page_id = ?",
+                (project_id, blueprint_version, page_id),
+            )
+            if error_type:
+                connection.execute(
+                    "INSERT INTO asset_curation_errors VALUES (?, ?, ?, ?)",
+                    (
+                        project_id,
+                        blueprint_version,
+                        page_id,
+                        error_type,
+                    ),
+                )
+
+    def list_errors(
+        self,
+        project_id: str,
+        blueprint_version: int,
+    ) -> dict[str, str]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT page_id, error_type FROM asset_curation_errors "
+                "WHERE project_id = ? AND blueprint_version = ?",
+                (project_id, blueprint_version),
+            ).fetchall()
+        return dict(rows)

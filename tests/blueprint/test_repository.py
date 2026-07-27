@@ -1,6 +1,8 @@
 import pytest
 
+from pptmaker.assets.repository import AssetRepository
 from pptmaker.blueprint.repository import BlueprintRepository
+from tests.assets.test_models import record
 from tests.blueprint.factories import blueprint
 
 
@@ -55,3 +57,31 @@ def test_list_is_ordered_by_version(tmp_path):
     repository.create(blueprint())
 
     assert [item.version for item in repository.list("p1")] == [1, 2]
+
+
+def test_approve_requires_asset_bound_to_blueprint_page(tmp_path):
+    path = tmp_path / "db.sqlite"
+    repository = BlueprintRepository(path)
+    draft = blueprint(page_count=1)
+    draft = draft.model_copy(
+        update={
+            "pages": [
+                draft.pages[0].model_copy(update={"asset_ids": ["a1"]})
+            ]
+        }
+    )
+    created = repository.create(draft)
+
+    with pytest.raises(ValueError, match="asset"):
+        repository.approve("p1", created.version)
+
+    assets = AssetRepository(path)
+    assets.replace_candidates(
+        "p1",
+        created.version,
+        "p1",
+        [record(blueprint_version=created.version, page_id="p1")],
+    )
+    assets.approve("p1", "a1")
+
+    assert repository.approve("p1", created.version).status == "APPROVED"
