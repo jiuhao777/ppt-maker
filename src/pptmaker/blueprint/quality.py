@@ -38,6 +38,31 @@ def review_blueprint(
 
     heavy_run = 0
     for page in pages:
+        slot_ids = [item.slot_id for item in page.asset_slots]
+        element_ids = [item.element_id for item in page.layout_elements]
+        image_refs = {
+            item.content_ref
+            for item in page.layout_elements
+            if item.kind == "image"
+        }
+        if len(page.asset_slots) > 4:
+            defects.append("too_many_asset_slots")
+        if len(slot_ids) != len(set(slot_ids)):
+            defects.append("duplicate_asset_slot_id")
+        if len(element_ids) != len(set(element_ids)):
+            defects.append("duplicate_layout_element_id")
+        if image_refs - set(slot_ids):
+            defects.append("invalid_layout_reference")
+        if set(slot_ids) - image_refs:
+            defects.append("unrepresented_asset_slot")
+        if any(
+            item.required
+            and not item.selected_asset_id
+            and item.fallback == "no_image"
+            for item in page.asset_slots
+        ):
+            defects.append("required_asset_missing")
+
         heavy_run = heavy_run + 1 if page.density == "heavy" else 0
         if heavy_run > 3:
             defects.append("density_rhythm_invalid")

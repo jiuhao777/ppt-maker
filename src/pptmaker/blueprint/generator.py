@@ -9,6 +9,7 @@ from pptmaker.blueprint.models import (
     DeckBlueprint,
 )
 from pptmaker.blueprint.quality import review_blueprint
+from pptmaker.blueprint.layout_planner import plan_page_layout
 from pptmaker.m2.models import DeckOutline, RequirementBrief
 from pptmaker.m3.models import DesignPlan
 from pptmaker.providers.structured import StructuredModel
@@ -116,7 +117,9 @@ def generate_blueprint(
         )
         if [page.page_id for page in batch.pages] != requested_ids:
             raise InvalidBlueprint("page batch does not match requested pages")
-        generated_pages.extend(batch.pages)
+        generated_pages.extend(
+            plan_page_layout(page) for page in batch.pages
+        )
 
     blueprint = DeckBlueprint(
         project_id=outline.project_id,
