@@ -132,3 +132,16 @@ def test_provider_failure_returns_only_safe_category():
     assert error.value.category == "unknown"
     assert "TEST_KEY" not in str(error.value)
     assert "https://" not in str(error.value)
+
+
+def test_deepseek_structured_request_disables_thinking():
+    client = FakeFactory(['{"value":"ok"}'])
+    config = CONFIG.model_copy(update={"provider_id": "deepseek"})
+
+    StructuredModel(config, client).generate(
+        Answer, "system", "user", "TEST_KEY"
+    )
+
+    assert client.completions.calls[0]["extra_body"] == {
+        "thinking": {"type": "disabled"}
+    }

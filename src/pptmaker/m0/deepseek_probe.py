@@ -32,6 +32,7 @@ BASE_MESSAGES = [
         "content": (
             "只输出 JSON 对象，字段严格为 title:string 和 slides:string[3..12]，"
             "不得使用 Markdown 代码块或增加其他字段。"
+            '示例：{"title":"项目汇报","slides":["背景","方案","结果"]}'
         ),
     },
     {
@@ -147,9 +148,11 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
 def _online_requester(client: OpenAI) -> Requester:
     def request(messages: list[dict[str, str]]) -> tuple[str, int, int]:
         response = client.chat.completions.create(
-            model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+            model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
             temperature=0,
             response_format={"type": "json_object"},
+            max_tokens=512,
+            extra_body={"thinking": {"type": "disabled"}},
             timeout=30,
             messages=messages,
         )
@@ -166,7 +169,7 @@ def _online_requester(client: OpenAI) -> Requester:
 def run_online_probe(iterations: int = 20) -> ProbeResult:
     key = os.environ["DEEPSEEK_API_KEY"]
     base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
     client = OpenAI(
         api_key=key,
         base_url=base_url,

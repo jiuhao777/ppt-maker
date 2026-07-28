@@ -36,6 +36,10 @@ class OpenAICompatibleProvider:
                 "temperature": 0,
                 "max_tokens": 16,
             }
+            if self.config.provider_id == "deepseek":
+                common["extra_body"] = {
+                    "thinking": {"type": "disabled"}
+                }
             client.chat.completions.create(**common)
             capabilities["basic_completion"] = Capability(
                 value=True, source="probed"

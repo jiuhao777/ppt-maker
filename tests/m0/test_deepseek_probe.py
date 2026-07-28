@@ -77,3 +77,38 @@ def test_module_entrypoint_writes_machine_readable_result(monkeypatch, tmp_path)
 
     assert path == tmp_path / "artifacts" / "m0" / "deepseek-structured-output.json"
     assert '"status": "pass"' in path.read_text("utf-8")
+
+
+def test_online_request_uses_current_non_thinking_model(monkeypatch):
+    calls = []
+
+    class Completions:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            message = type("Message", (), {"content": VALID})()
+            choice = type("Choice", (), {"message": message})()
+            usage = type(
+                "Usage",
+                (),
+                {"prompt_tokens": 10, "completion_tokens": 5},
+            )()
+            return type(
+                "Response",
+                (),
+                {"choices": [choice], "usage": usage},
+            )()
+
+    client = type(
+        "Client",
+        (),
+        {"chat": type("Chat", (), {"completions": Completions()})()},
+    )()
+    monkeypatch.delenv("DEEPSEEK_MODEL", raising=False)
+
+    deepseek_probe._online_requester(client)(deepseek_probe.BASE_MESSAGES)
+
+    assert calls[0]["model"] == "deepseek-v4-flash"
+    assert calls[0]["extra_body"] == {
+        "thinking": {"type": "disabled"}
+    }
+    assert calls[0]["max_tokens"] == 512

@@ -51,12 +51,18 @@ class StructuredModel:
 
         for attempt in range(3):
             try:
-                response = client.chat.completions.create(
+                arguments = dict(
                     model=self.config.model,
                     messages=messages,
                     response_format={"type": "json_object"},
                     temperature=0,
+                    max_tokens=8192,
                 )
+                if self.config.provider_id == "deepseek":
+                    arguments["extra_body"] = {
+                        "thinking": {"type": "disabled"}
+                    }
+                response = client.chat.completions.create(**arguments)
             except Exception as exc:
                 safe = safe_provider_error(exc)
                 raise StructuredOutputError(safe.category, safe.message) from None
