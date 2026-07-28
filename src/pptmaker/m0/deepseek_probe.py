@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import time
 from collections.abc import Callable
@@ -60,7 +61,22 @@ def _error_category(exc: Exception) -> str:
 
 
 def _safe_error_signature(exc: Exception) -> str:
-    message = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-<redacted>", str(exc))
+    message = str(exc)
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        safe_body = {
+            key: body.get(key)
+            for key in ("code", "message", "param", "type")
+            if body.get(key) is not None
+        }
+        if safe_body:
+            message += " " + json.dumps(safe_body, ensure_ascii=False)
+    message = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-<redacted>", message)
+    message = re.sub(
+        r"(?i)(authorization|api[_-]?key|bearer)(\s*[:=]?\s*)\S+",
+        r"\1\2<redacted>",
+        message,
+    )
     return f"{type(exc).__name__}: {message[:500]}"
 
 

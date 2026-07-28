@@ -21,6 +21,20 @@ def test_error_signature_redacts_api_keys():
     )
 
 
+def test_error_signature_keeps_safe_provider_hint():
+    error = ValueError("Error code: 400")
+    error.body = {
+        "code": "invalid_parameter",
+        "message": "model is unavailable",
+        "param": "model",
+        "api_key": "sk-secret",
+    }
+    signature = _safe_error_signature(error)
+    assert "invalid_parameter" in signature
+    assert '"param": "model"' in signature
+    assert "sk-secret" not in signature
+
+
 def test_parses_valid_outline():
     value = parse_outline(VALID)
     assert value.slides == ["背景", "方案", "结果"]
