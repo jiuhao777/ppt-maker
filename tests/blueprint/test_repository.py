@@ -4,6 +4,7 @@ from pptmaker.assets.repository import AssetRepository
 from pptmaker.blueprint.repository import BlueprintRepository
 from tests.assets.test_models import record
 from tests.blueprint.factories import blueprint
+from pptmaker.blueprint.models import AssetSlot, LayoutRegion
 
 
 def test_create_supersedes_previous_draft(tmp_path):
@@ -144,3 +145,59 @@ def test_image_page_without_asset_approves_as_no_image_layout(tmp_path):
 
     approved = repository.approve("p1", created.version)
     assert approved.pages[0].visual.kind == "none"
+
+
+def test_select_asset_updates_only_matching_slot(tmp_path):
+    path = tmp_path / "db.sqlite"
+    repository = BlueprintRepository(path)
+    draft = blueprint(page_count=1)
+    slots = [
+        AssetSlot(
+            slot_id=slot_id,
+            role="logo",
+            subject=slot_id,
+            search_query=slot_id,
+            purpose="品牌识别",
+            region=LayoutRegion(
+                x=0.1 + index * 0.3,
+                y=0.2,
+                width=0.2,
+                height=0.2,
+            ),
+        )
+        for index, slot_id in enumerate(["logo-a", "logo-b"])
+    ]
+    draft.pages[0] = draft.pages[0].model_copy(
+        update={"asset_slots": slots}
+    )
+    created = repository.create(draft)
+    assets = AssetRepository(path)
+    for asset_id, slot_id in [("asset-a", "logo-a"), ("asset-b", "logo-b")]:
+        assets.replace_candidates(
+            "p1",
+            created.version,
+            "p1",
+            [
+                record(
+                    id=asset_id,
+                    page_id="p1",
+                    blueprint_version=created.version,
+                    slot_id=slot_id,
+                )
+            ],
+            slot_id=slot_id,
+        )
+        assets.approve("p1", asset_id)
+
+    first = repository.select_asset(
+        "p1", created.version, "p1", "logo-a", "asset-a"
+    )
+    second = repository.select_asset(
+        "p1", created.version, "p1", "logo-b", "asset-b"
+    )
+
+    assert first.pages[0].asset_slots[0].selected_asset_id == "asset-a"
+    assert {
+        slot.slot_id: slot.selected_asset_id
+        for slot in second.pages[0].asset_slots
+    } == {"logo-a": "asset-a", "logo-b": "asset-b"}

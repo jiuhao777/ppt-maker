@@ -39,31 +39,38 @@ class AssetRepository:
         blueprint_version: int,
         page_id: str,
         records: list[AssetRecord],
+        slot_id: str | None = None,
     ) -> None:
+        slot_id = slot_id or (records[0].slot_id if records else "hero")
         if any(
             item.project_id != project_id
             or item.blueprint_version != blueprint_version
             or item.page_id != page_id
+            or item.slot_id != slot_id
             for item in records
         ):
             raise ValueError("asset project, blueprint, or page does not match")
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            approved_ids = {
-                row[0]
-                for row in connection.execute(
-                    "SELECT id FROM assets WHERE project_id = ? "
-                    "AND blueprint_version = ? AND page_id = ? "
-                    "AND status = 'APPROVED'",
-                    (project_id, blueprint_version, page_id),
-                ).fetchall()
-            }
-            connection.execute(
-                "DELETE FROM assets WHERE project_id = ? "
-                "AND blueprint_version = ? AND page_id = ? "
-                "AND status != 'APPROVED'",
+            rows = connection.execute(
+                "SELECT id, payload FROM assets WHERE project_id = ? "
+                "AND blueprint_version = ? AND page_id = ?",
                 (project_id, blueprint_version, page_id),
-            )
+            ).fetchall()
+            approved_ids = {
+                current_id
+                for current_id, payload in rows
+                if AssetRecord.model_validate_json(payload).slot_id == slot_id
+                and AssetRecord.model_validate_json(payload).status
+                == "APPROVED"
+            }
+            for current_id, payload in rows:
+                current = AssetRecord.model_validate_json(payload)
+                if current.slot_id == slot_id and current.status != "APPROVED":
+                    connection.execute(
+                        "DELETE FROM assets WHERE project_id = ? AND id = ?",
+                        (project_id, current_id),
+                    )
             connection.executemany(
                 "INSERT INTO assets VALUES (?, ?, ?, ?, ?, ?)",
                 [
@@ -124,6 +131,8 @@ class AssetRepository:
             ).fetchall()
             for current_id, payload in rows:
                 current = AssetRecord.model_validate_json(payload)
+                if current.slot_id != selected.slot_id:
+                    continue
                 status = "APPROVED" if current_id == asset_id else "REJECTED"
                 updated = current.model_copy(update={"status": status})
                 connection.execute(

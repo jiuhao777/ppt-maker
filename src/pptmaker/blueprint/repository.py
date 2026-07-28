@@ -150,13 +150,25 @@ class BlueprintRepository:
             )
             for page in draft.pages:
                 approved_assets = {
-                    item.id
+                    (item.slot_id, item.id)
                     for item in assets.list_for_blueprint(
                         project_id, version, page.page_id
                     )
                     if item.status == "APPROVED"
                 }
-                if not set(page.asset_ids).issubset(approved_assets):
+                selected_slots = {
+                    (item.slot_id, item.selected_asset_id)
+                    for item in page.asset_slots
+                    if item.selected_asset_id
+                }
+                legacy_approved = {
+                    asset_id
+                    for _, asset_id in approved_assets
+                }
+                if (
+                    not set(page.asset_ids).issubset(legacy_approved)
+                    or not selected_slots.issubset(approved_assets)
+                ):
                     raise ValueError(
                         "blueprint references an unapproved asset"
                     )
@@ -228,25 +240,59 @@ class BlueprintRepository:
         project_id: str,
         version: int,
         page_id: str,
-        asset_id: str,
+        slot_id: str,
+        asset_id: str | None = None,
     ) -> DeckBlueprint:
+        if asset_id is None:
+            asset_id = slot_id
+            slot_id = "hero"
         assets = AssetRepository(self.path)
         approved = {
-            item.id
+            (item.slot_id, item.id)
             for item in assets.list_for_blueprint(
                 project_id, version, page_id
             )
             if item.status == "APPROVED"
         }
-        if asset_id not in approved:
+        if (slot_id, asset_id) not in approved:
             raise ValueError("asset is not approved for this page")
         return self._update_draft_page(
             project_id,
             version,
             page_id,
-            lambda page: page.model_copy(
-                update={"asset_ids": [asset_id]}
-            ),
+            lambda page: page.model_copy(update={
+                "asset_ids": [asset_id],
+                "asset_slots": [
+                    item.model_copy(update={"selected_asset_id": asset_id})
+                    if item.slot_id == slot_id else item
+                    for item in page.asset_slots
+                ],
+            }),
+        )
+
+    def set_slot_fallback(
+        self,
+        project_id: str,
+        version: int,
+        page_id: str,
+        slot_id: str,
+    ) -> DeckBlueprint:
+        return self._update_draft_page(
+            project_id,
+            version,
+            page_id,
+            lambda page: page.model_copy(update={
+                "asset_slots": [
+                    item.model_copy(
+                        update={
+                            "selected_asset_id": None,
+                            "required": False,
+                        }
+                    )
+                    if item.slot_id == slot_id else item
+                    for item in page.asset_slots
+                ]
+            }),
         )
 
     def set_page_no_image(

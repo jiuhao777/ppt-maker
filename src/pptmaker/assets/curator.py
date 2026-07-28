@@ -62,43 +62,80 @@ class AssetCurator:
         for page in blueprint.pages:
             if page_ids is not None and page.page_id not in page_ids:
                 continue
-            if (
-                page.visual.kind not in {"photo", "illustration"}
-                or not page.asset_search_query.strip()
-            ):
-                continue
+            targets = [
+                (slot.slot_id, slot.search_query)
+                for slot in page.asset_slots
+            ]
+            if not targets and page.asset_search_query.strip():
+                targets = [("hero", page.asset_search_query)]
+            for slot_id, search_query in targets:
+                result_key = (
+                    f"{page.page_id}:{slot_id}"
+                    if page.asset_slots
+                    else page.page_id
+                )
+                self._curate_slot(
+                    project_id,
+                    blueprint,
+                    page.page_id,
+                    slot_id,
+                    search_query,
+                    license_mode,
+                    counts,
+                    failures,
+                    diagnostics,
+                    result_key,
+                )
+        return CurationResult(counts, failures, diagnostics)
+
+    def _curate_slot(
+        self,
+        project_id,
+        blueprint,
+        page_id,
+        slot_id,
+        search_query,
+        license_mode,
+        counts,
+        failures,
+        diagnostics,
+        result_key,
+    ) -> None:
+            key = result_key
             try:
                 candidates = self.search.search(
-                    page.asset_search_query.strip(), 8
+                    search_query.strip(), 8
                 )
             except AssetProviderError:
-                failures[page.page_id] = "image search unavailable"
+                failures[key] = "image search unavailable"
                 self.repository.replace_candidates(
                     project_id,
                     blueprint.version,
-                    page.page_id,
+                    page_id,
                     [],
+                    slot_id,
                 )
                 self.repository.set_page_error(
                     project_id,
                     blueprint.version,
-                    page.page_id,
-                    failures[page.page_id],
+                    key,
+                    failures[key],
                 )
-                diagnostics[page.page_id] = {
+                diagnostics[key] = {
                     "searched": 0,
                     "download_failed": 0,
                     "validation_rejected": 0,
                     "usable": 0,
                 }
-                continue
+                return
             records = []
             rejected = 0
             download_failed = 0
             for candidate in candidates:
                 identifier = hashlib.sha256(
                     (
-                        page.page_id
+                        page_id
+                        + slot_id
                         + candidate.provider
                         + candidate.id
                     ).encode("utf-8")
@@ -109,7 +146,8 @@ class AssetCurator:
                         id=identifier,
                         project_id=project_id,
                         blueprint_version=blueprint.version,
-                        page_id=page.page_id,
+                        page_id=page_id,
+                        slot_id=slot_id,
                         license_mode=license_mode,
                         accessed_at=self.clock(),
                     )
@@ -118,7 +156,8 @@ class AssetCurator:
                         self.destination_root
                         / project_id
                         / str(blueprint.version)
-                        / page.page_id,
+                        / page_id
+                        / slot_id,
                         self.resolver,
                     )
                 except InvalidImage:
@@ -144,18 +183,19 @@ class AssetCurator:
             self.repository.replace_candidates(
                 project_id,
                 blueprint.version,
-                page.page_id,
+                page_id,
                 records,
+                slot_id,
             )
-            counts[page.page_id] = len(records)
-            diagnostics[page.page_id] = {
+            counts[key] = len(records)
+            diagnostics[key] = {
                 "searched": len(candidates),
                 "download_failed": download_failed,
                 "validation_rejected": rejected,
                 "usable": len(records),
             }
             if not records:
-                failures[page.page_id] = (
+                failures[key] = (
                     "未找到可安全下载的图片"
                     if candidates
                     else "未搜索到图片候选"
@@ -163,7 +203,6 @@ class AssetCurator:
             self.repository.set_page_error(
                 project_id,
                 blueprint.version,
-                page.page_id,
-                failures.get(page.page_id),
+                key,
+                failures.get(key),
             )
-        return CurationResult(counts, failures, diagnostics)

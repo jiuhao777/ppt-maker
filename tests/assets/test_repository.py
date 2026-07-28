@@ -58,3 +58,28 @@ def test_list_is_scoped_to_project_blueprint_and_page(tmp_path):
         item.id
         for item in repository.list_for_blueprint("p1", 1, "page-1")
     ] == ["a1"]
+
+
+def test_approving_another_slot_keeps_first_slot_approved(tmp_path):
+    repository = AssetRepository(tmp_path / "db.sqlite")
+    hero = record(id="hero-1", slot_id="hero")
+    logo = record(id="logo-1", slot_id="logo")
+    repository.replace_candidates(
+        "p1", 1, "page-1", [hero], slot_id="hero"
+    )
+    repository.replace_candidates(
+        "p1", 1, "page-1", [logo], slot_id="logo"
+    )
+
+    repository.approve("p1", hero.id)
+    repository.approve("p1", logo.id)
+
+    approved = [
+        item
+        for item in repository.list_for_blueprint("p1", 1)
+        if item.status == "APPROVED"
+    ]
+    assert {(item.slot_id, item.id) for item in approved} == {
+        ("hero", "hero-1"),
+        ("logo", "logo-1"),
+    }

@@ -31,6 +31,7 @@ class AssetRecord(AssetCandidate):
     project_id: str = Field(min_length=1)
     blueprint_version: int = Field(ge=1)
     page_id: str = Field(min_length=1)
+    slot_id: str = Field(default="hero", min_length=1, max_length=100)
     license_mode: LicenseMode
     accessed_at: datetime
     status: AssetStatus = "CANDIDATE"
