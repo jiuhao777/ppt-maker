@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 
 from pptmaker.assets.repository import AssetRepository
+from pptmaker.blueprint.migration import load_blueprint
 from pptmaker.blueprint.models import DeckBlueprint
 
 
@@ -83,7 +84,7 @@ class BlueprintRepository:
                     connection,
                     blueprint.project_id,
                     version,
-                    DeckBlueprint.model_validate_json(payload),
+                    load_blueprint(payload),
                     "SUPERSEDED",
                 )
             created = blueprint.model_copy(
@@ -105,7 +106,7 @@ class BlueprintRepository:
                 "WHERE project_id = ? AND version = ?",
                 (project_id, version),
             ).fetchone()
-        return DeckBlueprint.model_validate_json(row[0]) if row else None
+        return load_blueprint(row[0]) if row else None
 
     def list(self, project_id: str) -> list[DeckBlueprint]:
         with self._connect() as connection:
@@ -114,7 +115,7 @@ class BlueprintRepository:
                 "WHERE project_id = ? ORDER BY version",
                 (project_id,),
             ).fetchall()
-        return [DeckBlueprint.model_validate_json(row[0]) for row in rows]
+        return [load_blueprint(row[0]) for row in rows]
 
     def approve(self, project_id: str, version: int) -> DeckBlueprint:
         assets = AssetRepository(self.path)
@@ -127,7 +128,7 @@ class BlueprintRepository:
             ).fetchone()
             if row is None:
                 raise ValueError("blueprint is not an approvable draft")
-            draft = DeckBlueprint.model_validate_json(row[0])
+            draft = load_blueprint(row[0])
             draft = draft.model_copy(
                 update={
                     "pages": [
@@ -168,7 +169,7 @@ class BlueprintRepository:
                     connection,
                     project_id,
                     old_version,
-                    DeckBlueprint.model_validate_json(payload),
+                    load_blueprint(payload),
                     "SUPERSEDED",
                 )
             approved = self._replace_status(

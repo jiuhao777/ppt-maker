@@ -32,6 +32,27 @@ VisualKind = Literal[
     "icons",
     "cards",
 ]
+LayoutElementKind = Literal[
+    "title",
+    "subtitle",
+    "body",
+    "chart",
+    "image",
+    "source",
+    "footer",
+    "page_number",
+]
+AssetRole = Literal[
+    "background",
+    "hero",
+    "logo",
+    "photo",
+    "screenshot",
+    "illustration",
+    "icon",
+    "case",
+    "decorative",
+]
 
 
 class ChartSeries(BaseModel):
@@ -95,6 +116,47 @@ class VisualPlan(BaseModel):
     highlights: list[str] = Field(default_factory=list, max_length=2)
 
 
+class LayoutRegion(BaseModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    width: float = Field(gt=0, le=1)
+    height: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def _inside_canvas(self):
+        if self.x + self.width > 1 or self.y + self.height > 1:
+            raise ValueError("layout region must stay inside canvas")
+        return self
+
+
+class LayoutElementPlan(BaseModel):
+    element_id: str = Field(min_length=1, max_length=100)
+    kind: LayoutElementKind
+    region: LayoutRegion
+    z_index: int = Field(default=0, ge=0, le=100)
+    alignment: Literal["left", "center", "right"] = "left"
+    font_size: int | None = Field(default=None, ge=10, le=72)
+    color_token: str = Field(default="text_primary", max_length=50)
+    content_ref: str = Field(min_length=1, max_length=100)
+    fit: Literal["cover", "contain"] | None = None
+
+
+class AssetSlot(BaseModel):
+    slot_id: str = Field(min_length=1, max_length=100)
+    role: AssetRole
+    subject: str = Field(min_length=1, max_length=300)
+    search_query: str = Field(min_length=1, max_length=500)
+    purpose: str = Field(min_length=1, max_length=500)
+    required: bool = False
+    region: LayoutRegion
+    fit: Literal["cover", "contain"] = "cover"
+    z_index: int = Field(default=0, ge=0, le=100)
+    fallback: Literal[
+        "no_image", "icon", "text", "simplified_layout"
+    ] = "simplified_layout"
+    selected_asset_id: str | None = Field(default=None, max_length=200)
+
+
 class BlueprintPage(BaseModel):
     page_id: str = Field(min_length=1)
     order: int = Field(ge=1, le=100)
@@ -110,11 +172,30 @@ class BlueprintPage(BaseModel):
     next_bridge: str = Field(default="", max_length=300)
     visual: VisualPlan
     fact_ids: list[str] = Field(default_factory=list, max_length=50)
+    layout_elements: list[LayoutElementPlan] = Field(default_factory=list)
+    asset_slots: list[AssetSlot] = Field(default_factory=list, max_length=4)
     asset_search_query: str = Field(default="", max_length=500)
     asset_ids: list[str] = Field(default_factory=list, max_length=20)
     estimated_seconds: int = Field(default=60, ge=10, le=600)
     density: Literal["light", "medium", "heavy"] = "medium"
     memory_anchor: str = Field(default="", max_length=200)
+
+    @model_validator(mode="after")
+    def _validate_layout_references(self):
+        slot_ids = [item.slot_id for item in self.asset_slots]
+        element_ids = [item.element_id for item in self.layout_elements]
+        if len(slot_ids) != len(set(slot_ids)):
+            raise ValueError("asset slot ids must be unique")
+        if len(element_ids) != len(set(element_ids)):
+            raise ValueError("layout element ids must be unique")
+        image_refs = {
+            item.content_ref
+            for item in self.layout_elements
+            if item.kind == "image"
+        }
+        if image_refs - set(slot_ids):
+            raise ValueError("image element references an unknown asset slot")
+        return self
 
 
 class BlueprintSection(BaseModel):
@@ -134,7 +215,7 @@ class BlueprintDraft(BaseModel):
 
 
 class DeckBlueprint(BlueprintDraft):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     project_id: str
     outline_version: int = Field(ge=1)
     version: int = Field(ge=1)

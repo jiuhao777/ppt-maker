@@ -5,6 +5,9 @@ from pptmaker.blueprint.models import (
     BlueprintSection,
     DeckBible,
     DeckBlueprint,
+    AssetSlot,
+    LayoutElementPlan,
+    LayoutRegion,
     VisualPlan,
 )
 from pptmaker.blueprint.quality import review_blueprint
@@ -26,6 +29,9 @@ __all__ = [
     "BlueprintSkeleton",
     "DeckBible",
     "DeckBlueprint",
+    "AssetSlot",
+    "LayoutElementPlan",
+    "LayoutRegion",
     "InvalidBlueprint",
     "VisualPlan",
     "review_blueprint",
