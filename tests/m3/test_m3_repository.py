@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from pptmaker.m3.models import ContentPlan, DesignPlan, SlideContent, ColorPalette, FontSet
+from pptmaker.m3.models import SlideSpec
+from pptmaker.m3.artifacts import GenerationArtifact
 from pptmaker.m3.repository import M3Repository
 from pptmaker.m3.renderer import render_pptx, RenderError
 
@@ -36,6 +38,58 @@ class TestRepository:
             slides=[SlideContent(page_id="p1", title="T", body_paragraphs=[], bullet_points=[], source_references=[])])
         repo.save_content(plan)
         assert b"sk-" not in db.read_bytes()
+
+    def test_specs_and_artifact_round_trip(self):
+        db = Path(tempfile.mktemp(suffix=".db"))
+        repo = M3Repository(db)
+        spec = SlideSpec(
+            page_id="p1",
+            order=1,
+            page_type="text",
+            background_color="#FFFFFF",
+        )
+        repo.save_specs("p1", 2, [spec])
+        artifact = GenerationArtifact(
+            project_id="p1",
+            blueprint_version=2,
+            status="RUNNING",
+        )
+        repo.save_artifact(artifact)
+
+        assert repo.get_specs("p1", 2)[0].page_id == "p1"
+        assert repo.get_artifact("p1", 2).status == "RUNNING"
+
+    def test_running_artifact_recovers_after_restart(self):
+        db = Path(tempfile.mktemp(suffix=".db"))
+        repo = M3Repository(db)
+        repo.save_artifact(
+            GenerationArtifact(
+                project_id="p1",
+                blueprint_version=1,
+                status="RUNNING",
+            )
+        )
+
+        assert repo.mark_running_recoverable() == 1
+        recovered = repo.get_artifact("p1", 1)
+        assert recovered.status == "FAILED_RECOVERABLE"
+        assert recovered.safe_error_type == "interrupted"
+
+    def test_recovery_is_scoped_to_current_project(self):
+        db = Path(tempfile.mktemp(suffix=".db"))
+        repo = M3Repository(db)
+        for project_id in ("p1", "p2"):
+            repo.save_artifact(
+                GenerationArtifact(
+                    project_id=project_id,
+                    blueprint_version=1,
+                    status="RUNNING",
+                )
+            )
+
+        assert repo.mark_running_recoverable("p1") == 1
+        assert repo.get_artifact("p1", 1).status == "FAILED_RECOVERABLE"
+        assert repo.get_artifact("p2", 1).status == "RUNNING"
 
 
 class TestRenderer:

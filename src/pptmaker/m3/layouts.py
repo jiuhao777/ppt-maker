@@ -438,6 +438,10 @@ def layout_page(
     assets: list[AssetRecord],
 ) -> SlideSpec:
     effective_type = page.page_type
+    if effective_type == "image_text" and page.visual.kind not in {
+        "photo", "illustration"
+    }:
+        effective_type = "text"
     if page.visual.kind in {"photo", "illustration"} and effective_type == "text":
         effective_type = "image_text"
     elif page.visual.kind == "chart" and effective_type == "text":

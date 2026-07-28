@@ -1,118 +1,202 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import streamlit as st
 
-from pptmaker.app_paths import database_path
+from pptmaker.assets.repository import AssetRepository
 from pptmaker.blueprint.repository import BlueprintRepository
-from pptmaker.m2.models import DeckOutline, RequirementBrief
 from pptmaker.m2.repository import M2Repository
+from pptmaker.m3.artifacts import (
+    GenerationArtifact,
+    file_sha256,
+    verified_pptx_path,
+)
+from pptmaker.m3.blueprint_compiler import (
+    compile_blueprint,
+    design_from_blueprint,
+)
 from pptmaker.m3.builder import build_pptx
-from pptmaker.m3.compiler import compile_specs
-from pptmaker.m3.content import plan_content
-from pptmaker.m3.design import plan_design
-from pptmaker.m3.models import ContentPlan, DesignPlan
-from pptmaker.m3.renderer import RenderError, render_pptx
+from pptmaker.m3.quality import inspect_specs
+from pptmaker.m3.renderer import render_pptx
 from pptmaker.m3.repository import M3Repository
 from pptmaker.projects import ProjectRepository
-from pptmaker.providers import ProviderConfig, StructuredModel
-from pptmaker.providers.structured import StructuredOutputError
 from pptmaker.research.repository import ResearchRepository
 from pptmaker.ui.state import safe_generation_message
 
-STYLE_OPTIONS = ["auto", "business", "academic", "creative", "minimal", "tech"]
-STYLE_LABELS = {
-    "auto": "自动判断", "business": "商务专业", "academic": "学术严谨",
-    "creative": "创意活力", "minimal": "极简干净", "tech": "科技未来",
-}
 
-
-def _provider() -> StructuredModel:
-    return StructuredModel(ProviderConfig(
-        provider_id=st.session_state.provider_id,
-        base_url=st.session_state.provider_base_url,
-        model=st.session_state.provider_model,
-    ))
-
-
-def render_m3_generation(project, projects: ProjectRepository) -> None:
-    m2_repo = M2Repository(projects.path)
-    outlines = m2_repo.list_outlines(project.id)
-    approved = [o for o in outlines if o.status == "APPROVED"]
-    if not approved:
+def render_m3_generation(
+    project,
+    projects: ProjectRepository,
+) -> None:
+    outlines = [
+        item
+        for item in M2Repository(projects.path).list_outlines(project.id)
+        if item.status == "APPROVED"
+    ]
+    if not outlines:
         return
-    approved_blueprints = [
+    blueprints = [
         item
         for item in BlueprintRepository(projects.path).list(project.id)
         if item.status == "APPROVED"
-        and item.outline_version == approved[-1].version
+        and item.outline_version == outlines[-1].version
     ]
-    if not approved_blueprints:
+    if not blueprints:
         return
-
-    brief = m2_repo.get_brief(project.id)
+    blueprint = blueprints[-1]
+    repository = M3Repository(projects.path)
+    recovery_key = f"m3_recovery_checked_{project.id}"
+    if not st.session_state.get(recovery_key):
+        repository.mark_running_recoverable(project.id)
+        st.session_state[recovery_key] = True
 
     st.divider()
     st.subheader("生成 PPT")
+    st.caption(
+        f"基于已批准详细大纲 v{blueprint.version}，"
+        "生成阶段不会再次调用模型。"
+    )
 
-    style = st.selectbox("视觉风格", STYLE_OPTIONS, format_func=STYLE_LABELS.get,
-                         key=f"m3_style_{project.id}")
-
-    cache_key = f"m3_pptx_{project.id}"
-    thumb_key = f"m3_thumbs_{project.id}"
-
-    if st.button("生成 PPT", key=f"m3_generate_{project.id}", type="primary"):
-        if not st.session_state.api_key:
-            st.warning("请先输入 API Key。")
-            return
-
+    if st.button(
+        "生成 PPT",
+        key=f"m3_generate_{project.id}_{blueprint.version}",
+        type="primary",
+    ):
+        now = datetime.now(timezone.utc)
+        repository.save_artifact(
+            GenerationArtifact(
+                project_id=project.id,
+                blueprint_version=blueprint.version,
+                status="RUNNING",
+                created_at=now,
+                updated_at=now,
+            )
+        )
         try:
-            # Clear old cache before regenerating
-            st.session_state.pop(cache_key, None)
-            st.session_state.pop(thumb_key, None)
-
-            with st.spinner("设计风格中..."):
-                design = plan_design(brief, style, _provider(), st.session_state.api_key)
-
-            with st.spinner("规划内容中..."):
-                chunks = m2_repo.list_chunks(project.id)
-                facts = ResearchRepository(projects.path).list_facts(project.id, active_only=True)
-                content = plan_content(brief, approved[-1], design, chunks, facts,
-                                       _provider(), st.session_state.api_key)
-
-            with st.spinner("构建文件中..."):
-                specs = compile_specs(content, design)
+            with st.spinner("编译详细大纲…"):
+                design = design_from_blueprint(blueprint)
+                facts = ResearchRepository(projects.path).list_facts(
+                    project.id, active_only=True
+                )
+                assets = AssetRepository(projects.path).list_for_blueprint(
+                    project.id, blueprint.version
+                )
+                specs = compile_blueprint(
+                    blueprint, facts, assets, design
+                )
+                quality = inspect_specs(specs)
+                repository.save_design(design)
+                repository.save_specs(
+                    project.id, blueprint.version, specs
+                )
+            with st.spinner("构建可编辑 PPTX…"):
                 export_dir = projects.path.parent / "exports" / project.id
-                pptx_path = build_pptx(specs, design, export_dir / f"v{approved[-1].version}.pptx")
-                st.session_state[cache_key] = pptx_path.read_bytes()
-
-            with st.spinner("渲染缩略图中..."):
+                pptx_path = build_pptx(
+                    specs,
+                    design,
+                    export_dir
+                    / f"blueprint-v{blueprint.version}.pptx",
+                )
+                ready = GenerationArtifact(
+                    project_id=project.id,
+                    blueprint_version=blueprint.version,
+                    status="PPTX_READY",
+                    pptx_path=str(pptx_path),
+                    pptx_hash=file_sha256(pptx_path),
+                    quality_report=quality,
+                    created_at=now,
+                    updated_at=datetime.now(timezone.utc),
+                )
+                repository.save_artifact(ready)
+            with st.spinner("PowerPoint 渲染预览…"):
                 try:
-                    render_dir = projects.path.parent / "renders" / project.id / str(approved[-1].version)
-                    thumbs = render_pptx(pptx_path, render_dir)
-                    st.session_state[thumb_key] = thumbs
-                except RenderError:
-                    st.session_state[thumb_key] = []
-
-            m3_repo = M3Repository(projects.path)
-            m3_repo.save_design(design)
-            m3_repo.save_content(content)
-
-            st.success(f"PPT 生成完成（{len(specs)} 页）")
+                    render_dir = (
+                        projects.path.parent
+                        / "renders"
+                        / project.id
+                        / str(blueprint.version)
+                    )
+                    renders = render_pptx(pptx_path, render_dir)
+                except Exception:
+                    repository.save_artifact(
+                        ready.model_copy(
+                            update={
+                                "safe_error_type": "render_unavailable",
+                                "updated_at": datetime.now(timezone.utc),
+                            }
+                        )
+                    )
+                else:
+                    repository.save_artifact(
+                        ready.model_copy(
+                            update={
+                                "status": "COMPLETED",
+                                "render_paths": [
+                                    str(path) for path in renders
+                                ],
+                                "updated_at": datetime.now(timezone.utc),
+                            }
+                        )
+                    )
             st.rerun()
-
-        except StructuredOutputError as exc:
-            st.error(safe_generation_message(exc))
         except Exception as exc:
+            repository.save_artifact(
+                GenerationArtifact(
+                    project_id=project.id,
+                    blueprint_version=blueprint.version,
+                    status="FAILED_RECOVERABLE",
+                    safe_error_type=type(exc).__name__,
+                    created_at=now,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
             st.error(safe_generation_message(exc))
 
-    # Show cached results
-    if cache_key in st.session_state:
-        st.download_button("下载 PPTX", st.session_state[cache_key],
-                           f"{project.id}.pptx", key=f"m3_download_{project.id}")
+    artifact = repository.get_artifact(project.id, blueprint.version)
+    if artifact is None:
+        return
+    if artifact.status == "FAILED_RECOVERABLE":
+        st.warning("上次生成未完成，可以重新生成。")
+        return
+    if artifact.status == "RUNNING":
+        st.info("生成任务正在执行。")
+        return
+    try:
+        pptx_path = verified_pptx_path(
+            artifact, projects.path.parent
+        )
+    except ValueError:
+        st.error("生成文件校验失败，请重新生成。")
+        return
+    st.download_button(
+        "下载 PPTX",
+        pptx_path.read_bytes(),
+        file_name=f"{project.name}.pptx",
+        key=f"m3_download_{project.id}_{blueprint.version}",
+    )
+    if artifact.safe_error_type == "render_unavailable":
+        st.warning("PPTX 已生成，但当前环境无法渲染预览。")
+    valid_renders = [
+        path
+        for value in artifact.render_paths
+        if (path := _safe_render_path(value, projects.path.parent))
+    ]
+    if valid_renders:
+        columns = st.columns(3)
+        for index, path in enumerate(valid_renders):
+            with columns[index % 3]:
+                st.image(
+                    str(path),
+                    caption=f"第 {index + 1} 页",
+                    use_container_width=True,
+                )
 
-        thumbs = st.session_state.get(thumb_key, [])
-        if thumbs:
-            cols = st.columns(3)
-            for i, path in enumerate(thumbs):
-                with cols[i % 3]:
-                    st.image(str(path), caption=f"第 {i + 1} 页", use_container_width=True)
+
+def _safe_render_path(value: str, data_root):
+    root = data_root.resolve()
+    path = Path(value).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path if path.is_file() else None

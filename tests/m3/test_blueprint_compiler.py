@@ -152,3 +152,16 @@ def test_compiler_emits_native_chart_data():
 
     chart = next(el for el in specs[0].elements if el.type == "chart")
     assert chart.series == {"Revenue": [10.0, 13.0]}
+
+
+def test_data_chart_page_requires_structured_chart_data():
+    item = approved_blueprint()
+    page = item.pages[0].model_copy(update={"page_type": "data_chart"})
+
+    with pytest.raises(BlueprintCompileError, match="structured"):
+        compile_blueprint(
+            item.model_copy(update={"pages": [page]}),
+            [fact()],
+            [],
+            design(),
+        )

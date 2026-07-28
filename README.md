@@ -11,6 +11,12 @@ Local-first AI presentation agent for Windows 11 and Microsoft PowerPoint.
 5. Review verified image candidates, sources, authors and licenses.
 6. Approve the Blueprint before generating PPTX.
 
+PPT generation compiles the approved Blueprint deterministically. It does not
+make another LLM request. Generated text, tables and charts remain editable;
+approved images are cropped without stretching; source blocks and speaker notes
+are retained. Completed files are restored from SQLite by Blueprint version
+after a browser refresh.
+
 API keys exist only in the current Streamlit session and are lost on refresh.
 They are not written to SQLite, project exports, files or logs.
 
@@ -39,4 +45,3 @@ in the first version.
 Remote images are downloaded by the server only after SSRF, redirect, MIME,
 byte-size, decoded-format and pixel-dimension checks. The browser receives only
 verified local thumbnails.
-
