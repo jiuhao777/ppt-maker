@@ -3,6 +3,7 @@ import json
 
 import openai
 
+from pptmaker.providers.deepseek_http import deepseek_chat
 from pptmaker.providers.models import Capability, CapabilityReport, ProviderConfig
 from pptmaker.security.secrets import safe_provider_error
 
@@ -18,11 +19,10 @@ class OpenAICompatibleProvider:
 
     def probe(self, api_key: str) -> CapabilityReport:
         unknown = Capability(value="unknown", source="unknown")
-        capabilities = {
-            "vision": unknown,
-            "max_context": unknown,
-        }
+        capabilities = {"vision": unknown, "max_context": unknown}
         warnings = []
+        if self.config.provider_id == "deepseek":
+            return self._probe_deepseek(api_key, capabilities, warnings)
         try:
             client = self.client_factory(
                 api_key=api_key,
@@ -40,7 +40,6 @@ class OpenAICompatibleProvider:
             capabilities["basic_completion"] = Capability(
                 value=True, source="probed"
             )
-
             structured = self._optional_probe(
                 client,
                 {
@@ -57,7 +56,6 @@ class OpenAICompatibleProvider:
             )
             if not structured:
                 warnings.append("该模型不支持结构化输出。")
-
             tools = self._optional_probe(
                 client,
                 {
@@ -82,6 +80,83 @@ class OpenAICompatibleProvider:
                 },
                 self._has_ping_tool_call,
             )
+            capabilities["tools"] = Capability(
+                value=tools, source="probed"
+            )
+            if not tools:
+                warnings.append("该模型不支持工具调用。")
+            return CapabilityReport(
+                status="success",
+                capabilities=capabilities,
+                warnings=warnings,
+            )
+        except Exception as exc:
+            return CapabilityReport(
+                status="failed",
+                capabilities=capabilities,
+                error=safe_provider_error(exc),
+            )
+
+    def _probe_deepseek(
+        self,
+        api_key: str,
+        capabilities: dict[str, Capability],
+        warnings: list[str],
+    ) -> CapabilityReport:
+        common = (api_key, self.config.base_url, self.config.model)
+        try:
+            deepseek_chat(
+                *common,
+                [{"role": "user", "content": "Reply with OK."}],
+                max_tokens=64,
+            )
+            capabilities["basic_completion"] = Capability(
+                value=True, source="probed"
+            )
+            structured = self._deepseek_optional(
+                lambda: deepseek_chat(
+                    *common,
+                    [
+                        {
+                            "role": "user",
+                            "content": 'Return JSON exactly: {"ok":true}',
+                        }
+                    ],
+                    response_format={"type": "json_object"},
+                    max_tokens=64,
+                ),
+                self._has_json_payload,
+            )
+            capabilities["structured_output"] = Capability(
+                value=structured, source="probed"
+            )
+            if not structured:
+                warnings.append("该模型不支持结构化输出。")
+            tools = self._deepseek_optional(
+                lambda: deepseek_chat(
+                    *common,
+                    [{"role": "user", "content": "Call ping."}],
+                    tools=[
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "ping",
+                                "description": "Return a health check.",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {},
+                                },
+                            },
+                        }
+                    ],
+                    tool_choice={
+                        "type": "function",
+                        "function": {"name": "ping"},
+                    },
+                    max_tokens=64,
+                ),
+                self._has_ping_payload,
+            )
             capabilities["tools"] = Capability(value=tools, source="probed")
             if not tools:
                 warnings.append("该模型不支持工具调用。")
@@ -96,6 +171,32 @@ class OpenAICompatibleProvider:
                 capabilities=capabilities,
                 error=safe_provider_error(exc),
             )
+
+    @staticmethod
+    def _deepseek_optional(request: Callable, validator: Callable) -> bool:
+        try:
+            return validator(request())
+        except Exception:
+            return False
+
+    @staticmethod
+    def _has_json_payload(payload: dict) -> bool:
+        try:
+            json.loads(payload["choices"][0]["message"]["content"])
+            return True
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+            return False
+
+    @staticmethod
+    def _has_ping_payload(payload: dict) -> bool:
+        try:
+            calls = payload["choices"][0]["message"].get("tool_calls") or []
+            return any(
+                item.get("function", {}).get("name") == "ping"
+                for item in calls
+            )
+        except (KeyError, IndexError, TypeError):
+            return False
 
     @staticmethod
     def _optional_probe(client, arguments: dict, validator: Callable) -> bool:

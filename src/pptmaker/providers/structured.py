@@ -6,6 +6,7 @@ import openai
 from pydantic import BaseModel, ValidationError
 
 from pptmaker.providers.models import ProviderConfig
+from pptmaker.providers.deepseek_http import deepseek_chat
 from pptmaker.security.secrets import safe_provider_error
 
 
@@ -51,22 +52,34 @@ class StructuredModel:
 
         for attempt in range(3):
             try:
-                arguments = dict(
-                    model=self.config.model,
-                    messages=messages,
-                    response_format={"type": "json_object"},
-                    temperature=0,
-                    max_tokens=8192,
-                )
                 if self.config.provider_id == "deepseek":
-                    arguments.pop("temperature")
-                response = client.chat.completions.create(**arguments)
+                    payload = deepseek_chat(
+                        api_key,
+                        self.config.base_url,
+                        self.config.model,
+                        messages,
+                        response_format={"type": "json_object"},
+                    )
+                    content = payload["choices"][0]["message"].get(
+                        "content"
+                    )
+                else:
+                    arguments = dict(
+                        model=self.config.model,
+                        messages=messages,
+                        response_format={"type": "json_object"},
+                        temperature=0,
+                        max_tokens=8192,
+                    )
+                    response = client.chat.completions.create(**arguments)
+                    content = getattr(
+                        response.choices[0].message, "content", None
+                    )
             except Exception as exc:
                 safe = safe_provider_error(exc)
                 raise StructuredOutputError(safe.category, safe.message) from None
 
             try:
-                content = getattr(response.choices[0].message, "content", None)
                 return schema.model_validate_json(content)
             except (AttributeError, IndexError, ValidationError, TypeError) as exc:
                 if attempt == 2:

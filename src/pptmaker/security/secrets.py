@@ -57,10 +57,11 @@ def _redact_value(value):
 
 
 def safe_provider_error(exc: Exception) -> ProviderError:
-    if isinstance(exc, openai.AuthenticationError):
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(exc, openai.AuthenticationError) or status_code == 401:
         category = "authentication"
         message = "API Key 无效或无权访问该模型。"
-    elif isinstance(exc, openai.RateLimitError):
+    elif isinstance(exc, openai.RateLimitError) or status_code == 429:
         category = "rate_limit"
         message = "模型服务当前限流，请稍后重试。"
     elif isinstance(exc, openai.APITimeoutError):
@@ -69,7 +70,10 @@ def safe_provider_error(exc: Exception) -> ProviderError:
     elif isinstance(exc, openai.APIConnectionError):
         category = "network"
         message = "无法连接模型服务。"
-    elif isinstance(exc, (openai.BadRequestError, openai.NotFoundError)):
+    elif (
+        isinstance(exc, (openai.BadRequestError, openai.NotFoundError))
+        or status_code in {400, 404, 422}
+    ):
         category = "unsupported"
         message = "当前端点或模型不支持该请求。"
     else:

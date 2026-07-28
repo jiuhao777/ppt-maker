@@ -119,3 +119,39 @@ def test_probe_returns_safe_authentication_error():
     assert report.status == "failed"
     assert report.error.category == "authentication"
     assert "TEST_KEY" not in report.model_dump_json()
+
+
+def test_deepseek_probe_uses_direct_http(monkeypatch):
+    calls = []
+
+    def request(*args, **kwargs):
+        calls.append((args, kwargs))
+        if kwargs.get("tools"):
+            message = {
+                "content": None,
+                "tool_calls": [{"function": {"name": "ping"}}],
+            }
+        elif kwargs.get("response_format"):
+            message = {"content": '{"ok":true}'}
+        else:
+            message = {"content": "OK"}
+        return {"choices": [{"message": message}]}
+
+    monkeypatch.setattr(
+        "pptmaker.providers.openai_compatible.deepseek_chat",
+        request,
+    )
+    provider = OpenAICompatibleProvider(
+        ProviderConfig(
+            provider_id="deepseek",
+            base_url="https://api.deepseek.com",
+            model="deepseek-v4-pro",
+        )
+    )
+
+    report = provider.probe("TEST_KEY")
+
+    assert report.status == "success"
+    assert report.capabilities["structured_output"].value is True
+    assert report.capabilities["tools"].value is True
+    assert len(calls) == 3

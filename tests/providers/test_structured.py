@@ -134,13 +134,25 @@ def test_provider_failure_returns_only_safe_category():
     assert "https://" not in str(error.value)
 
 
-def test_deepseek_structured_request_matches_official_json_mode():
-    client = FakeFactory(['{"value":"ok"}'])
+def test_deepseek_structured_request_uses_direct_http(monkeypatch):
+    calls = []
+
+    def request(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"choices": [{"message": {"content": '{"value":"ok"}'}}]}
+
+    monkeypatch.setattr(
+        "pptmaker.providers.structured.deepseek_chat",
+        request,
+    )
+    client = FakeFactory([])
     config = CONFIG.model_copy(update={"provider_id": "deepseek"})
 
-    StructuredModel(config, client).generate(
+    result = StructuredModel(config, client).generate(
         Answer, "system", "user", "TEST_KEY"
     )
 
-    assert "extra_body" not in client.completions.calls[0]
-    assert "temperature" not in client.completions.calls[0]
+    assert result.value == "ok"
+    assert calls[0][0][0] == "TEST_KEY"
+    assert calls[0][1]["response_format"] == {"type": "json_object"}
+    assert client.completions.calls == []

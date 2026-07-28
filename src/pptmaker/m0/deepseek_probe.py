@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
 from pptmaker.m0.contracts import ProbeResult, ProbeStatus
+from pptmaker.providers.deepseek_http import deepseek_chat
 
 
 class OutlineProbe(BaseModel):
@@ -161,20 +161,25 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
     )
 
 
-def _online_requester(client: OpenAI) -> Requester:
+def _online_requester(
+    key: str,
+    base_url: str,
+    model: str,
+) -> Requester:
     def request(messages: list[dict[str, str]]) -> tuple[str, int, int]:
-        response = client.chat.completions.create(
-            model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
+        response = deepseek_chat(
+            key,
+            base_url,
+            model,
+            messages,
             response_format={"type": "json_object"},
             max_tokens=512,
-            timeout=30,
-            messages=messages,
         )
-        usage: Any = response.usage
+        usage: Any = response.get("usage") or {}
         return (
-            response.choices[0].message.content or "",
-            int(usage.prompt_tokens if usage else 0),
-            int(usage.completion_tokens if usage else 0),
+            response["choices"][0]["message"].get("content") or "",
+            int(usage.get("prompt_tokens", 0)),
+            int(usage.get("completion_tokens", 0)),
         )
 
     return request
@@ -184,11 +189,10 @@ def run_online_probe(iterations: int = 20) -> ProbeResult:
     key = os.environ["DEEPSEEK_API_KEY"]
     base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
-    client = OpenAI(
-        api_key=key,
-        base_url=base_url,
+    result = run_structured_probe(
+        _online_requester(key, base_url, model),
+        iterations=iterations,
     )
-    result = run_structured_probe(_online_requester(client), iterations=iterations)
     return result.model_copy(
         update={
             "details": {

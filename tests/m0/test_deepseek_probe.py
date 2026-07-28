@@ -96,32 +96,21 @@ def test_module_entrypoint_writes_machine_readable_result(monkeypatch, tmp_path)
 def test_online_request_uses_current_non_thinking_model(monkeypatch):
     calls = []
 
-    class Completions:
-        def create(self, **kwargs):
-            calls.append(kwargs)
-            message = type("Message", (), {"content": VALID})()
-            choice = type("Choice", (), {"message": message})()
-            usage = type(
-                "Usage",
-                (),
-                {"prompt_tokens": 10, "completion_tokens": 5},
-            )()
-            return type(
-                "Response",
-                (),
-                {"choices": [choice], "usage": usage},
-            )()
+    def request(key, base_url, model, messages, **kwargs):
+        calls.append((key, base_url, model, messages, kwargs))
+        return {
+            "choices": [{"message": {"content": VALID}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
 
-    client = type(
-        "Client",
-        (),
-        {"chat": type("Chat", (), {"completions": Completions()})()},
-    )()
-    monkeypatch.delenv("DEEPSEEK_MODEL", raising=False)
+    monkeypatch.setattr(deepseek_probe, "deepseek_chat", request)
+    result = deepseek_probe._online_requester(
+        "TEST_KEY",
+        "https://api.deepseek.com",
+        "deepseek-v4-pro",
+    )(deepseek_probe.BASE_MESSAGES)
 
-    deepseek_probe._online_requester(client)(deepseek_probe.BASE_MESSAGES)
-
-    assert calls[0]["model"] == "deepseek-v4-pro"
-    assert "extra_body" not in calls[0]
-    assert "temperature" not in calls[0]
-    assert calls[0]["max_tokens"] == 512
+    assert result == (VALID, 10, 5)
+    assert calls[0][2] == "deepseek-v4-pro"
+    assert calls[0][4]["response_format"] == {"type": "json_object"}
+    assert calls[0][4]["max_tokens"] == 512
