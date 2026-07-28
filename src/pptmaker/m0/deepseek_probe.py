@@ -164,11 +164,9 @@ def run_structured_probe(requester: Requester, iterations: int = 20) -> ProbeRes
 def _online_requester(client: OpenAI) -> Requester:
     def request(messages: list[dict[str, str]]) -> tuple[str, int, int]:
         response = client.chat.completions.create(
-            model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
-            temperature=0,
+            model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
             response_format={"type": "json_object"},
             max_tokens=512,
-            extra_body={"thinking": {"type": "disabled"}},
             timeout=30,
             messages=messages,
         )
@@ -185,7 +183,7 @@ def _online_requester(client: OpenAI) -> Requester:
 def run_online_probe(iterations: int = 20) -> ProbeResult:
     key = os.environ["DEEPSEEK_API_KEY"]
     base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
     client = OpenAI(
         api_key=key,
         base_url=base_url,

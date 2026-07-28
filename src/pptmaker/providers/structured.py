@@ -59,9 +59,7 @@ class StructuredModel:
                     max_tokens=8192,
                 )
                 if self.config.provider_id == "deepseek":
-                    arguments["extra_body"] = {
-                        "thinking": {"type": "disabled"}
-                    }
+                    arguments.pop("temperature")
                 response = client.chat.completions.create(**arguments)
             except Exception as exc:
                 safe = safe_provider_error(exc)

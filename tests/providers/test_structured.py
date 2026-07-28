@@ -134,7 +134,7 @@ def test_provider_failure_returns_only_safe_category():
     assert "https://" not in str(error.value)
 
 
-def test_deepseek_structured_request_disables_thinking():
+def test_deepseek_structured_request_matches_official_json_mode():
     client = FakeFactory(['{"value":"ok"}'])
     config = CONFIG.model_copy(update={"provider_id": "deepseek"})
 
@@ -142,6 +142,5 @@ def test_deepseek_structured_request_disables_thinking():
         Answer, "system", "user", "TEST_KEY"
     )
 
-    assert client.completions.calls[0]["extra_body"] == {
-        "thinking": {"type": "disabled"}
-    }
+    assert "extra_body" not in client.completions.calls[0]
+    assert "temperature" not in client.completions.calls[0]

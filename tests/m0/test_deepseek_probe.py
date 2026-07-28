@@ -121,8 +121,7 @@ def test_online_request_uses_current_non_thinking_model(monkeypatch):
 
     deepseek_probe._online_requester(client)(deepseek_probe.BASE_MESSAGES)
 
-    assert calls[0]["model"] == "deepseek-v4-flash"
-    assert calls[0]["extra_body"] == {
-        "thinking": {"type": "disabled"}
-    }
+    assert calls[0]["model"] == "deepseek-v4-pro"
+    assert "extra_body" not in calls[0]
+    assert "temperature" not in calls[0]
     assert calls[0]["max_tokens"] == 512

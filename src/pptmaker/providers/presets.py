@@ -5,7 +5,7 @@ PRESETS = {
     "deepseek": ProviderConfig(
         provider_id="deepseek",
         base_url="https://api.deepseek.com",
-        model="deepseek-v4-flash",
+        model="deepseek-v4-pro",
     ),
     "kimi": ProviderConfig(
         provider_id="kimi",
