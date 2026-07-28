@@ -52,11 +52,19 @@ def inspect_specs(specs: list[SlideSpec]) -> SpecQualityReport:
                     )
                 )
                 continue
+            is_background = (
+                element.type == "image"
+                and element.width >= 12.5
+                and element.height >= 7.0
+            )
             if (
+                not is_background
+                and (
                 element.x < 0.5
                 or element.y < 0.35
                 or element.x + element.width > 12.833
                 or element.y + element.height > 7.15
+                )
             ):
                 defects.append(
                     SpecDefect(
@@ -92,7 +100,7 @@ def inspect_specs(specs: list[SlideSpec]) -> SpecQualityReport:
                 defects.append(
                     SpecDefect(code="missing_source", page_id=spec.page_id)
                 )
-            if element.type in {
+            if not is_background and element.type in {
                 "text", "bullet", "image", "chart", "table"
             }:
                 semantic.append((index, element))

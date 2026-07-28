@@ -148,7 +148,11 @@ class AssetSlot(BaseModel):
     search_query: str = Field(min_length=1, max_length=500)
     purpose: str = Field(min_length=1, max_length=500)
     required: bool = False
-    region: LayoutRegion
+    region: LayoutRegion = Field(
+        default_factory=lambda: LayoutRegion(
+            x=0.55, y=0.2, width=0.4, height=0.6
+        )
+    )
     fit: Literal["cover", "contain"] = "cover"
     z_index: int = Field(default=0, ge=0, le=100)
     fallback: Literal[

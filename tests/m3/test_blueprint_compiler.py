@@ -228,3 +228,28 @@ def test_special_page_with_image_compiles(page_type, tmp_path):
     )
     spec = compile_blueprint(item, [fact()], assets, design())[0]
     assert any(element.type == "image" for element in spec.elements)
+
+
+def test_background_image_can_sit_behind_ending_text(tmp_path):
+    item, assets = _multi_image_blueprint(
+        tmp_path, 1, page_type="ending"
+    )
+    page = item.pages[0]
+    background = page.asset_slots[0].model_copy(
+        update={"role": "background", "z_index": 0}
+    )
+    page = plan_page_layout(
+        page.model_copy(update={"asset_slots": [background]})
+    )
+    specs = compile_blueprint(
+        item.model_copy(update={"pages": [page]}),
+        [fact()],
+        assets,
+        design(),
+    )
+    assert any(
+        element.type == "image"
+        and element.x == 0
+        and element.y == 0
+        for element in specs[0].elements
+    )

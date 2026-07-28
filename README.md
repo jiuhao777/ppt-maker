@@ -5,10 +5,10 @@ Local-first AI presentation agent for Windows 11 and Microsoft PowerPoint.
 ## Current workflow
 
 1. Enter a topic or upload source material.
-2. Confirm requirements and approve the overview outline.
-3. Run optional Bocha web research after outline approval.
-4. Generate a detailed Deck Blueprint.
-5. Review safely downloaded image candidates.
+2. Run Bocha research before the overview outline when freshness is required.
+3. Confirm requirements and approve the overview outline.
+4. Generate a detailed Deck Blueprint with executable page geometry.
+5. Review image candidates independently for up to four planned slots per page.
 6. Approve the Blueprint before generating PPTX.
 
 PPT generation compiles the approved Blueprint deterministically. It does not
@@ -16,6 +16,13 @@ make another LLM request. Generated text, tables and charts remain editable;
 approved images are cropped without stretching; source blocks and speaker notes
 are retained. Completed files are restored from SQLite by Blueprint version
 after a browser refresh.
+
+Each detailed Blueprint page records its conclusion, content hierarchy, layout,
+image purpose and placement, highlights, speaker notes and page-to-page bridge.
+The normal editor uses readable descriptions; normalized coordinates are
+available under advanced settings. Older Blueprint payloads are migrated when
+loaded and saved as a new version. Manual edits made after export in PowerPoint
+do not synchronize back into the Blueprint.
 
 API keys exist only in the current Streamlit session and are lost on refresh.
 They are not written to SQLite, project exports, files or logs.

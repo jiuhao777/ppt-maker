@@ -433,6 +433,14 @@ def render_blueprint_workspace(
                         value="\n".join(page.supporting_points),
                         key=f"blueprint_points_{selected.version}_{page.page_id}",
                     )
+                    detail = st.text_area(
+                        "三级补充说明",
+                        value=page.detail,
+                        key=(
+                            f"blueprint_detail_{selected.version}_"
+                            f"{page.page_id}"
+                        ),
+                    )
                     notes = st.text_area(
                         "演讲者备注",
                         value=page.speaker_notes,
@@ -568,6 +576,7 @@ def render_blueprint_workspace(
                                     for item in points.splitlines()
                                     if item.strip()
                                 ][:3],
+                                "detail": detail,
                                 "speaker_notes": notes,
                                 "visual": page.visual.model_copy(
                                     update={"kind": kind, "layout": layout}
