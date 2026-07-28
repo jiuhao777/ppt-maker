@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pptmaker.assets.downloader import VerifiedImage, download_image
+from pptmaker.assets.downloader import InvalidImage, VerifiedImage, download_image
 from pptmaker.assets.models import AssetRecord, LicenseMode
 from pptmaker.assets.providers import AssetProvider, AssetProviderError
 from pptmaker.assets.repository import AssetRepository
@@ -16,6 +16,7 @@ from pptmaker.blueprint.models import DeckBlueprint
 class CurationResult:
     candidate_counts: dict[str, int]
     failures: dict[str, str]
+    diagnostics: dict[str, dict[str, int]]
 
 
 def _resolve(host: str) -> list[str]:
@@ -57,6 +58,7 @@ class AssetCurator:
             raise ValueError("blueprint project does not match")
         counts = {}
         failures = {}
+        diagnostics = {}
         for page in blueprint.pages:
             if page_ids is not None and page.page_id not in page_ids:
                 continue
@@ -83,15 +85,17 @@ class AssetCurator:
                     page.page_id,
                     failures[page.page_id],
                 )
+                diagnostics[page.page_id] = {
+                    "searched": 0,
+                    "download_failed": 0,
+                    "validation_rejected": 0,
+                    "usable": 0,
+                }
                 continue
             records = []
-            verification_failed = False
+            rejected = 0
+            download_failed = 0
             for candidate in candidates:
-                if (
-                    license_mode == "STRICT"
-                    and candidate.license_status != "REUSABLE"
-                ):
-                    continue
                 identifier = hashlib.sha256(
                     (
                         page.page_id
@@ -117,8 +121,11 @@ class AssetCurator:
                         / page.page_id,
                         self.resolver,
                     )
+                except InvalidImage:
+                    rejected += 1
+                    continue
                 except (ValueError, OSError):
-                    verification_failed = True
+                    download_failed += 1
                     continue
                 records.append(
                     record.model_copy(
@@ -132,7 +139,7 @@ class AssetCurator:
                         }
                     )
                 )
-                if len(records) == 3:
+                if len(records) == 5:
                     break
             self.repository.replace_candidates(
                 project_id,
@@ -141,9 +148,17 @@ class AssetCurator:
                 records,
             )
             counts[page.page_id] = len(records)
-            if verification_failed:
+            diagnostics[page.page_id] = {
+                "searched": len(candidates),
+                "download_failed": download_failed,
+                "validation_rejected": rejected,
+                "usable": len(records),
+            }
+            if not records:
                 failures[page.page_id] = (
-                    "some candidates failed verification"
+                    "未找到可安全下载的图片"
+                    if candidates
+                    else "未搜索到图片候选"
                 )
             self.repository.set_page_error(
                 project_id,
@@ -151,4 +166,4 @@ class AssetCurator:
                 page.page_id,
                 failures.get(page.page_id),
             )
-        return CurationResult(counts, failures)
+        return CurationResult(counts, failures, diagnostics)

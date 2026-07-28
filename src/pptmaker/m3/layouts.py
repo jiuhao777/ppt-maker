@@ -469,11 +469,6 @@ def layout_page(
     sources = [
         f"{item.source_title} · {item.source_url}" for item in facts
     ]
-    sources.extend(
-        f"{item.attribution or item.creator or '作者未知'} · "
-        f"{item.landing_url}"
-        for item in assets
-    )
     return SlideSpec(
         page_id=page.page_id,
         order=page.order,

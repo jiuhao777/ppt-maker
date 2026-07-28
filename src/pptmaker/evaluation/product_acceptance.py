@@ -14,7 +14,7 @@ class ProductAcceptanceReport(BaseModel):
     severe_geometry_defects: int
     density_violation_rate: float
     public_fact_traceability: float
-    asset_attribution_rate: float
+    asset_download_safety_rate: float
     file_reopens: bool
     passed: bool
 
@@ -50,7 +50,14 @@ def evaluate_deck(
         for item in specs
         if any(element.type == "image" for element in item.elements)
     ]
-    attributed = sum(bool(item.source_references) for item in image_specs)
+    safe_images = sum(
+        all(
+            Path(element.path).is_file()
+            for element in item.elements
+            if element.type == "image"
+        )
+        for item in image_specs
+    )
     try:
         file_reopens = len(Presentation(str(pptx_path)).slides) == len(specs)
     except Exception:
@@ -60,14 +67,14 @@ def evaluate_deck(
     title_rate = _rate(conclusion_titles, page_count)
     density_rate = _rate(density_violations, len(specs))
     traceability = _rate(traceable, len(factual))
-    attribution = _rate(attributed, len(image_specs))
+    image_safety = _rate(safe_images, len(image_specs))
     passed = (
         coverage >= 0.90
         and title_rate >= 0.90
         and severe == 0
         and density_rate <= 0.05
         and traceability >= 0.95
-        and attribution == 1.0
+        and image_safety == 1.0
         and file_reopens
     )
     return ProductAcceptanceReport(
@@ -76,7 +83,7 @@ def evaluate_deck(
         severe_geometry_defects=severe,
         density_violation_rate=density_rate,
         public_fact_traceability=traceability,
-        asset_attribution_rate=attribution,
+        asset_download_safety_rate=image_safety,
         file_reopens=file_reopens,
         passed=passed,
     )

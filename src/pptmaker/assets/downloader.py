@@ -46,15 +46,24 @@ def download_image(
     *,
     transport: httpx.BaseTransport | None = None,
 ) -> VerifiedImage:
-    result = safe_fetch_result(
-        str(candidate.thumbnail_url),
-        resolver,
-        SafeFetchPolicy(
-            allowed_content_types=tuple(_FORMATS),
-            max_response_bytes=10 * 1024 * 1024,
-        ),
-        transport,
+    policy = SafeFetchPolicy(
+        allowed_content_types=tuple(_FORMATS),
+        max_response_bytes=10 * 1024 * 1024,
     )
+    result = None
+    last_error = None
+    for url in dict.fromkeys(
+        [str(candidate.original_url), str(candidate.thumbnail_url)]
+    ):
+        try:
+            result = safe_fetch_result(
+                url, resolver, policy, transport
+            )
+            break
+        except Exception as exc:
+            last_error = exc
+    if result is None:
+        raise last_error
     expected_format, suffix = _FORMATS[result.content_type]
     try:
         with warnings.catch_warnings():

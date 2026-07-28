@@ -8,7 +8,7 @@ Local-first AI presentation agent for Windows 11 and Microsoft PowerPoint.
 2. Confirm requirements and approve the overview outline.
 3. Run optional Bocha web research after outline approval.
 4. Generate a detailed Deck Blueprint.
-5. Review verified image candidates, sources, authors and licenses.
+5. Review safely downloaded image candidates.
 6. Approve the Blueprint before generating PPTX.
 
 PPT generation compiles the approved Blueprint deterministically. It does not
@@ -55,13 +55,10 @@ python -m pytest -q
 python scripts/check_p4_product_acceptance_gate.py
 ```
 
-## Image license modes
+## Image discovery
 
-- `STRICT`: public domain, CC0, CC BY and CC BY-SA candidates only.
-- `LOOSE`: may include restricted or unknown licenses; the UI displays the
-  author, original source, license and a risk warning. The user remains
-  responsible for confirming reuse rights.
-
-Remote images are downloaded by the server only after SSRF, redirect, MIME,
-byte-size, decoded-format and pixel-dimension checks. The browser receives only
-verified local thumbnails.
+Image search prioritizes Bocha-discovered Chinese webpages, Bing China and
+domestic search adapters, then uses Openverse and Wikimedia as optional
+fallbacks. License and author metadata do not filter personal-use candidates.
+Remote images are downloaded only after SSRF, redirect, MIME, byte-size,
+decoded-format and pixel-dimension checks.

@@ -24,6 +24,6 @@ def test_acceptance_report_exposes_approved_thresholds(tmp_path):
     assert report.severe_geometry_defects == 0
     assert report.density_violation_rate <= 0.05
     assert report.public_fact_traceability >= 0.95
-    assert report.asset_attribution_rate == 1.0
+    assert report.asset_download_safety_rate == 1.0
 import os
 from pathlib import Path

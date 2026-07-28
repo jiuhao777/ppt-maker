@@ -43,15 +43,4 @@ class AssetRecord(AssetCandidate):
 
     @model_validator(mode="after")
     def _validate_license_use(self):
-        if self.license_mode == "LOOSE" and (
-            not self.creator or not self.attribution.strip()
-        ):
-            raise ValueError("loose assets require creator and attribution")
-        if (
-            self.status == "APPROVED"
-            and self.license_mode == "STRICT"
-            and self.license_status != "REUSABLE"
-        ):
-            raise ValueError("strict mode cannot approve this license")
         return self
-

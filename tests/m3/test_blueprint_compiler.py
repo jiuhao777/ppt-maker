@@ -121,7 +121,7 @@ def test_compiler_requires_bound_approved_local_image(tmp_path):
     )
     image = next(el for el in specs[0].elements if el.type == "image")
     assert image.path == str(image_path)
-    assert any("Alice" in source for source in specs[0].source_references)
+    assert not any("Alice" in source for source in specs[0].source_references)
 
 
 def test_compiler_emits_native_chart_data():

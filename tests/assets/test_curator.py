@@ -76,7 +76,7 @@ def test_curator_does_not_search_non_image_pages(tmp_path):
     assert result.candidate_counts == {}
 
 
-def test_curator_filters_strict_licenses_and_caps_verified_candidates(tmp_path):
+def test_curator_accepts_all_licenses_and_caps_verified_candidates(tmp_path):
     search = Search(
         [candidate(0, "RESTRICTED"), *[candidate(i) for i in range(1, 6)]]
     )
@@ -91,9 +91,9 @@ def test_curator_filters_strict_licenses_and_caps_verified_candidates(tmp_path):
     ).curate("p1", image_blueprint(), "STRICT")
 
     records = repository.list_for_blueprint("p1", 1, "p1")
-    assert result.candidate_counts == {"p1": 3}
-    assert len(records) == 3
-    assert all(item.license_status == "REUSABLE" for item in records)
+    assert result.candidate_counts == {"p1": 5}
+    assert len(records) == 5
+    assert records[0].license_status == "RESTRICTED"
 
 
 def test_curator_continues_after_invalid_image(tmp_path):
@@ -115,5 +115,6 @@ def test_curator_continues_after_invalid_image(tmp_path):
     ).curate("p1", image_blueprint(), "STRICT")
 
     assert result.candidate_counts == {"p1": 1}
-    assert result.failures == {"p1": "some candidates failed verification"}
+    assert result.failures == {}
+    assert result.diagnostics["p1"]["validation_rejected"] == 1
     assert repository.list_errors("p1", 1) == result.failures

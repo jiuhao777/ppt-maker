@@ -124,7 +124,7 @@ def test_set_page_no_image_clears_asset_and_visual_kind(tmp_path):
     assert updated.pages[0].visual.kind == "none"
 
 
-def test_image_page_cannot_be_approved_without_asset_choice(tmp_path):
+def test_image_page_without_asset_approves_as_no_image_layout(tmp_path):
     repository = BlueprintRepository(tmp_path / "db.sqlite")
     draft = blueprint(page_count=1)
     draft = draft.model_copy(
@@ -142,5 +142,5 @@ def test_image_page_cannot_be_approved_without_asset_choice(tmp_path):
     )
     created = repository.create(draft)
 
-    with pytest.raises(ValueError, match="image page"):
-        repository.approve("p1", created.version)
+    approved = repository.approve("p1", created.version)
+    assert approved.pages[0].visual.kind == "none"

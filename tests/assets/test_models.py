@@ -36,17 +36,16 @@ def test_asset_rejects_invalid_dimensions(field, value):
         record(**{field: value})
 
 
-def test_loose_asset_requires_attribution_and_source():
-    with pytest.raises(ValidationError):
-        record(
-            license_mode="LOOSE",
-            license_status="UNKNOWN",
-            creator=None,
-            attribution="",
-        )
+def test_personal_asset_allows_missing_attribution():
+    item = record(
+        license_mode="LOOSE",
+        license_status="UNKNOWN",
+        creator=None,
+        attribution="",
+    )
+    assert item.creator is None
 
 
-def test_restricted_asset_cannot_be_approved_in_strict_mode():
-    with pytest.raises(ValidationError):
-        record(license_status="RESTRICTED", status="APPROVED")
-
+def test_personal_asset_allows_restricted_candidate():
+    item = record(license_status="RESTRICTED", status="APPROVED")
+    assert item.status == "APPROVED"

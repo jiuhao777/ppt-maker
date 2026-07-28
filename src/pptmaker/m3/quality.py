@@ -85,10 +85,6 @@ def inspect_specs(specs: list[SlideSpec]) -> SpecQualityReport:
                             element_index=index,
                         )
                     )
-                if not spec.source_references:
-                    defects.append(
-                        SpecDefect(code="missing_source", page_id=spec.page_id)
-                    )
             if (
                 element.type == "chart"
                 and not spec.source_references

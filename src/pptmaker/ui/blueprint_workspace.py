@@ -2,13 +2,18 @@ from collections.abc import MutableMapping
 
 import streamlit as st
 
-from pptmaker.assets.curator import AssetCurator
+from pptmaker.assets.curator import AssetCurator, _resolve
 from pptmaker.assets.providers import (
-    FallbackAssetSearch,
+    JsonImageProvider,
     OpenverseProvider,
+    ProviderChain,
     WikimediaProvider,
 )
 from pptmaker.assets.repository import AssetRepository
+from pptmaker.assets.web_images import (
+    BingImageProvider,
+    BochaWebImageProvider,
+)
 from pptmaker.blueprint.generator import generate_blueprint
 from pptmaker.blueprint.models import DeckBlueprint
 from pptmaker.blueprint.quality import review_blueprint
@@ -42,8 +47,32 @@ STYLE_OPTIONS = [
 
 
 def _curate_assets(project, projects, blueprint, page_ids=None):
-    return AssetCurator(
-        FallbackAssetSearch(OpenverseProvider(), WikimediaProvider()),
+    providers = []
+    if st.session_state.get("bocha_api_key"):
+        providers.append(
+            BochaWebImageProvider(
+                st.session_state.bocha_api_key,
+                _resolve,
+            )
+        )
+    providers.extend(
+        [
+            BingImageProvider(),
+            JsonImageProvider(
+                "sogou",
+                "https://pic.sogou.com/napi/pc/searchList",
+            ),
+            JsonImageProvider("360", "https://image.so.com/j"),
+            JsonImageProvider(
+                "baidu",
+                "https://image.baidu.com/search/acjson",
+            ),
+            OpenverseProvider(),
+            WikimediaProvider(),
+        ]
+    )
+    result = AssetCurator(
+        ProviderChain(providers),
         AssetRepository(projects.path),
         projects.path.parent / "assets",
     ).curate(
@@ -52,6 +81,11 @@ def _curate_assets(project, projects, blueprint, page_ids=None):
         project.asset_license_mode,
         page_ids=page_ids,
     )
+    for page_id, diagnostics in result.diagnostics.items():
+        st.session_state[
+            f"asset_diagnostics_{project.id}_{blueprint.version}_{page_id}"
+        ] = diagnostics
+    return result
 
 
 def _render_asset_candidates(
@@ -76,18 +110,21 @@ def _render_asset_candidates(
         if page.page_id in errors:
             st.warning(errors[page.page_id])
         candidates = by_page.get(page.page_id, [])
+        diagnostics = st.session_state.get(
+            f"asset_diagnostics_{project.id}_{blueprint.version}_{page.page_id}"
+        )
+        if diagnostics:
+            st.caption(
+                "搜索 {searched} · 下载失败 {download_failed} · "
+                "格式/尺寸拒绝 {validation_rejected} · 可用 {usable}".format(
+                    **diagnostics
+                )
+            )
         if not candidates:
             st.info("暂无通过安全验证的候选图片。")
         for item in candidates:
             if item.local_path:
                 st.image(item.local_path, width=320)
-            st.caption(
-                f"{item.creator or '作者未知'} · "
-                f"{item.license_name or '许可未知'}"
-            )
-            st.markdown(f"[查看原始来源]({item.landing_url})")
-            if item.license_mode == "LOOSE":
-                st.warning("宽松素材：请在使用前自行确认许可风险。")
             if item.status == "APPROVED":
                 st.success("已选择")
             elif st.button(

@@ -56,7 +56,9 @@ def _threshold_errors(metrics: dict) -> list[str]:
         "severe_geometry_defects": metrics.get("severe_geometry_defects", 1) == 0,
         "density_violation_rate": metrics.get("density_violation_rate", 1) <= 0.05,
         "public_fact_traceability": metrics.get("public_fact_traceability", 0) >= 0.95,
-        "asset_attribution_rate": metrics.get("asset_attribution_rate", 0) == 1.0,
+        "asset_download_safety_rate": metrics.get(
+            "asset_download_safety_rate", 0
+        ) == 1.0,
         "file_reopens": metrics.get("file_reopens") is True,
         "passed": metrics.get("passed") is True,
     }

@@ -12,7 +12,7 @@ METRICS = {
     "severe_geometry_defects": 0,
     "density_violation_rate": 0.0,
     "public_fact_traceability": 1.0,
-    "asset_attribution_rate": 1.0,
+    "asset_download_safety_rate": 1.0,
     "file_reopens": True,
     "passed": True,
 }

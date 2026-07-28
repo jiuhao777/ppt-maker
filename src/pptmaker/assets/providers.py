@@ -37,7 +37,11 @@ def _request_json(
             follow_redirects=False,
         ) as client:
             for attempt in range(2):
-                response = client.get(endpoint, params=params)
+                response = client.get(
+                    endpoint,
+                    params=params,
+                    headers={"User-Agent": "Mozilla/5.0 PPTMaker/1.0"},
+                )
                 if response.status_code not in {429, 500, 502, 503, 504}:
                     break
                 if attempt == 1:
@@ -236,4 +240,152 @@ class FallbackAssetSearch:
             unique.append(item)
             if len(unique) == count:
                 break
+        return unique
+
+
+def query_variants(query: str) -> list[str]:
+    base = " ".join(query.split())[:160]
+    return list(
+        dict.fromkeys(
+            [
+                base,
+                f"{base} 横版 高清",
+                f"{base} 摄影 插画 16:9",
+            ]
+        )
+    )
+
+
+class JsonImageProvider:
+    def __init__(
+        self,
+        provider: str,
+        endpoint: str,
+        *,
+        transport: httpx.BaseTransport | None = None,
+        timeout_seconds: float = 8,
+    ):
+        self.provider = provider
+        self.endpoint = endpoint
+        self.transport = transport
+        self.timeout_seconds = timeout_seconds
+
+    def search(self, query: str, count: int) -> list[AssetCandidate]:
+        params = _domestic_params(self.provider, query, count)
+        payload = _request_json(
+            self.endpoint, params, self.transport, self.timeout_seconds
+        )
+        return _domestic_candidates(self.provider, payload, count)
+
+
+def _domestic_params(provider: str, query: str, count: int) -> dict:
+    size = max(1, min(count, 20))
+    if provider == "sogou":
+        return {"query": query, "start": 0, "xml_len": size, "mode": 1}
+    if provider == "360":
+        return {"q": query, "sn": 0, "pn": size}
+    if provider == "baidu":
+        return {
+            "tn": "resultjson_com",
+            "word": query,
+            "pn": 0,
+            "rn": size,
+        }
+    raise ValueError("unknown domestic image provider")
+
+
+def _domestic_candidates(
+    provider: str, payload: dict, count: int
+) -> list[AssetCandidate]:
+    if provider == "sogou":
+        data = payload.get("data", {})
+        items = data.get("items", []) if isinstance(data, dict) else []
+    elif provider == "360":
+        items = payload.get("list", [])
+    else:
+        items = payload.get("data", [])
+    if not isinstance(items, list):
+        raise AssetProviderError("invalid_response")
+    candidates = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        original, thumbnail, landing = _domestic_urls(provider, item)
+        if not original or not thumbnail:
+            continue
+        landing = landing or original
+        try:
+            candidates.append(
+                AssetCandidate(
+                    id=f"{provider}-{item.get('id') or index}",
+                    provider=provider,
+                    original_url=original,
+                    landing_url=landing,
+                    thumbnail_url=thumbnail,
+                    license_status="UNKNOWN",
+                    width=_dimension(item, "width", "imgWidth") or 1600,
+                    height=_dimension(item, "height", "imgHeight") or 900,
+                )
+            )
+        except (TypeError, ValidationError):
+            continue
+        if len(candidates) == count:
+            break
+    return candidates
+
+
+def _domestic_urls(provider: str, item: dict) -> tuple:
+    if provider == "sogou":
+        return (
+            item.get("picUrl") or item.get("oriPicUrl"),
+            item.get("thumbUrl") or item.get("picUrl"),
+            item.get("pageUrl") or item.get("url"),
+        )
+    if provider == "360":
+        return (
+            item.get("img") or item.get("original"),
+            item.get("thumb") or item.get("img"),
+            item.get("link") or item.get("url"),
+        )
+    return (
+        item.get("objURL") or item.get("middleURL") or item.get("thumbURL"),
+        item.get("thumbURL") or item.get("middleURL"),
+        item.get("fromURL") or item.get("replaceUrl"),
+    )
+
+
+def _dimension(item: dict, *names: str) -> int | None:
+    for name in names:
+        try:
+            value = int(item.get(name) or 0)
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            return value
+    return None
+
+
+class ProviderChain:
+    def __init__(self, providers):
+        self.providers = list(providers)
+
+    def search(self, query: str, count: int) -> list[AssetCandidate]:
+        unique = []
+        seen = set()
+        for variant in query_variants(query):
+            for provider in self.providers:
+                try:
+                    candidates = provider.search(variant, count)
+                except AssetProviderError:
+                    continue
+                for item in candidates:
+                    key = str(item.thumbnail_url)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    unique.append(item)
+                    if len(unique) == count:
+                        return unique
+        if not unique and self.providers:
+            raise AssetProviderError("unavailable")
         return unique

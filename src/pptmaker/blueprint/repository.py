@@ -128,14 +128,26 @@ class BlueprintRepository:
             if row is None:
                 raise ValueError("blueprint is not an approvable draft")
             draft = DeckBlueprint.model_validate_json(row[0])
+            draft = draft.model_copy(
+                update={
+                    "pages": [
+                        page.model_copy(
+                            update={
+                                "visual": page.visual.model_copy(
+                                    update={"kind": "none"}
+                                )
+                            }
+                        )
+                        if (
+                            page.visual.kind in {"photo", "illustration"}
+                            and not page.asset_ids
+                        )
+                        else page
+                        for page in draft.pages
+                    ]
+                }
+            )
             for page in draft.pages:
-                if (
-                    page.visual.kind in {"photo", "illustration"}
-                    and not page.asset_ids
-                ):
-                    raise ValueError(
-                        "image page requires an approved asset or no-image plan"
-                    )
                 approved_assets = {
                     item.id
                     for item in assets.list_for_blueprint(
