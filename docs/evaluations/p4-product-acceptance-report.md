@@ -4,7 +4,7 @@
 
 ## 自动化结果
 
-- 离线回归：450 passed，6 deselected。
+- 离线回归：455 passed，6 deselected。
 - P4 门禁：通过。
 - 历史门禁：M1、M2、M3、P1、P2、P3 全部通过。
 - 代表性 10 页 Deck Blueprint 已完成编译、质量检查、PPTX 构建和 python-pptx 重新打开。
@@ -26,6 +26,14 @@
 ## 隔离验收
 
 Office、DeepSeek、博查和公网图片检查不计入离线通过。当前 Codex 进程没有可用的交互式 Office 登录会话，因此 Office COM 测试需在用户 CMD 中运行。M0 的离线四项 Probe 已刷新；PowerPoint Worker 与 DeepSeek Probe 需按 `docs/manual-acceptance.md` 刷新后，M0 总门禁才会重新转为通过。
+
+## 2026-07-28 定向修复
+
+- 时效性路由现已在概略大纲生成前执行搜索，active facts 会进入大纲 Prompt；
+- `AUTO` 无博查 Key 或搜索失败时，必须由用户明确选择配置 Key、重试或继续生成非时效性内容；
+- 新的时效性决策会清除上一主题的事实与降级授权；
+- 大纲返工会确定性修复页数、顺序、关键点数量，并把无来源数字转为待核验缺口；
+- 局部返工仍严格保持影响范围外页面不变。
 
 ## 结论
 

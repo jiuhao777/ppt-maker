@@ -5,6 +5,7 @@ from pptmaker.m2.models import (
     DeckOutlineDraft,
     MaterialChunk,
     RequirementBrief,
+    OutlineGap,
     ReworkImpact,
     ReworkRequest,
 )
@@ -15,6 +16,52 @@ from pptmaker.research.contracts import FactRecord
 
 class InvalidRework(ValueError):
     pass
+
+
+def normalize_rework_draft(
+    current: DeckOutline,
+    draft: DeckOutlineDraft,
+    impact: ReworkImpact,
+) -> DeckOutlineDraft:
+    impacted = set(impact.impacted_page_ids)
+    pages = []
+    for index, page in enumerate(draft.pages, start=1):
+        if impact.mode == "local" and page.id not in impacted:
+            pages.append(page)
+            continue
+        gaps = list(page.gaps)
+        if (
+            any(character.isdigit() for character in " ".join(
+                [page.title, *page.key_points]
+            ))
+            and not page.source_locations
+            and not gaps
+        ):
+            gaps.append(
+                OutlineGap(
+                    question="核验本页数字及其最新来源",
+                    material_type="data",
+                    priority="high",
+                    search_hint="核验页面中的数字、统计口径和发布日期",
+                )
+            )
+        updates = {
+            "key_points": page.key_points[:3],
+            "gaps": gaps,
+        }
+        if impact.mode == "global":
+            updates["order"] = index
+        pages.append(page.model_copy(update=updates))
+    return draft.model_copy(
+        update={
+            "pages": pages,
+            "target_slides": (
+                len(pages)
+                if impact.mode == "global"
+                else current.target_slides
+            ),
+        }
+    )
 
 
 def _validate_impact(
@@ -142,6 +189,7 @@ def apply_rework(
         ),
         api_key,
     )
+    draft = normalize_rework_draft(current, draft, impact)
     validate_rework_scope(current, draft, impact)
     candidate = DeckOutline(
         project_id=current.project_id,
@@ -150,7 +198,14 @@ def apply_rework(
         parent_version=current.version,
         **draft.model_dump(),
     )
-    reflection = reflect_outline(brief, candidate, scope_page_ids=set(impact.impacted_page_ids))
+    scope = (
+        None
+        if impact.mode == "global"
+        else set(impact.impacted_page_ids)
+    )
+    reflection = reflect_outline(
+        brief, candidate, scope_page_ids=scope
+    )
     if not reflection.passed:
         # one retry with defects
         draft = model.generate(
@@ -169,6 +224,7 @@ def apply_rework(
             ),
             api_key,
         )
+        draft = normalize_rework_draft(current, draft, impact)
         validate_rework_scope(current, draft, impact)
         candidate = DeckOutline(
             project_id=current.project_id,
@@ -177,7 +233,9 @@ def apply_rework(
             parent_version=current.version,
             **draft.model_dump(),
         )
-        reflection = reflect_outline(brief, candidate, scope_page_ids=set(impact.impacted_page_ids))
+        reflection = reflect_outline(
+            brief, candidate, scope_page_ids=scope
+        )
         if not reflection.passed:
             raise InvalidRework(f"返工结果未通过质量检查: {', '.join(reflection.defects)}")
     return draft

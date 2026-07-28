@@ -20,6 +20,10 @@ class SearchKeyRequired(ValueError):
     pass
 
 
+class FreshnessApprovalRequired(ValueError):
+    pass
+
+
 class SearchProvider(Protocol):
     def search(
         self, query: SearchQuery, api_key: str
@@ -60,12 +64,14 @@ class FreshnessService:
             purpose,
             extraction.ai_freshness,
         )
+        self.repository.replace_facts(project_id, [])
         return self._save(
             ResearchRun(
                 project_id=project_id,
                 policy=policy,
                 decision=decision,
                 status="PLANNED" if decision.requires_web else "NOT_REQUIRED",
+                requires_user_action=decision.requires_web,
             )
         )
 
@@ -84,6 +90,7 @@ class FreshnessService:
             purpose,
             extraction.ai_freshness,
         )
+        self.repository.replace_facts(project_id, [])
         if not decision.requires_web:
             return self._save(
                 ResearchRun(
@@ -101,7 +108,8 @@ class FreshnessService:
                     project_id=project_id,
                     policy=policy,
                     decision=decision,
-                    status="SKIPPED_NO_KEY",
+                    status="PLANNED",
+                    requires_user_action=True,
                 )
             )
 
@@ -127,6 +135,7 @@ class FreshnessService:
                     decision=decision,
                     status="FAILED",
                     safe_error_type=type(exc).__name__,
+                    requires_user_action=True,
                 )
             )
         facts = normalize_results(project_id, results, self.clock())
@@ -138,5 +147,21 @@ class FreshnessService:
                 decision=decision,
                 status="COMPLETED",
                 fact_ids=[item.id for item in facts],
+            )
+        )
+
+    def accept_stale(self, pending: ResearchRun) -> ResearchRun:
+        if not pending.decision.requires_web or pending.status not in {
+            "PLANNED",
+            "FAILED",
+        }:
+            raise ValueError("research run does not require stale approval")
+        return self._save(
+            pending.model_copy(
+                update={
+                    "status": "SKIPPED_NO_KEY",
+                    "requires_user_action": False,
+                    "safe_error_type": None,
+                }
             )
         )

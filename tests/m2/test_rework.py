@@ -14,6 +14,7 @@ from pptmaker.m2.rework import (
     InvalidRework,
     analyze_rework,
     apply_rework,
+    normalize_rework_draft,
     validate_rework_scope,
 )
 
@@ -230,3 +231,62 @@ def test_rework_retry_preserves_scope_instructions():
     retry_payload = json.loads(model.users[1])
     assert "影响范围外" in model.systems[1]
     assert retry_payload["impact"]["mode"] == "local"
+
+
+def test_global_rework_normalizes_deterministic_quality_defects():
+    current = current_outline()
+    draft = DeckOutlineDraft(
+        narrative="更新",
+        target_slides=1,
+        pages=[
+            page("p1", 8, "效率提升30%", "说明结果").model_copy(
+                update={"key_points": ["一", "二", "三", "四"]}
+            ),
+            page("p2", 9, "方案", "说明方案"),
+            page("p3", 10, "行动", "说明行动"),
+        ],
+    )
+    impact = ReworkImpact(
+        mode="global",
+        feedback="整体更新",
+        impacted_page_ids=["p1", "p2", "p3"],
+        reasons={"p1": "结果", "p2": "方案", "p3": "行动"},
+        refresh_research_tasks=True,
+    )
+
+    normalized = normalize_rework_draft(current, draft, impact)
+
+    assert normalized.target_slides == 3
+    assert [item.order for item in normalized.pages] == [1, 2, 3]
+    assert normalized.pages[0].key_points == ["一", "二", "三"]
+    assert normalized.pages[0].gaps[0].material_type == "data"
+
+
+def test_local_normalization_preserves_unaffected_pages_exactly():
+    current = current_outline()
+    changed = current.pages[1].model_copy(
+        update={
+            "title": "效率提升30%",
+            "key_points": ["一", "二", "三", "四"],
+        }
+    )
+    draft = DeckOutlineDraft(
+        narrative=current.narrative,
+        target_slides=99,
+        pages=[current.pages[0], changed, current.pages[2]],
+    )
+    impact = ReworkImpact(
+        mode="local",
+        feedback="修改方案页",
+        impacted_page_ids=["p2"],
+        reasons={"p2": "用户指定"},
+        refresh_research_tasks=True,
+    )
+
+    normalized = normalize_rework_draft(current, draft, impact)
+
+    assert normalized.target_slides == current.target_slides
+    assert normalized.pages[0] == current.pages[0]
+    assert normalized.pages[2] == current.pages[2]
+    assert len(normalized.pages[1].key_points) == 3
+    assert normalized.pages[1].gaps

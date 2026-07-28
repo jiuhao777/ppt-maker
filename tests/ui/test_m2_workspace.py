@@ -9,6 +9,10 @@ from pptmaker.ui.m2_workspace import (
     queue_version_selection,
     web_generation_block,
 )
+from pptmaker.m2.interview import RequirementExtraction
+from pptmaker.research.contracts import FreshnessDecision
+from pptmaker.research.repository import ResearchRepository
+from pptmaker.research.service import FreshnessService
 
 
 def test_m2_workspace_shows_task_and_requirement_context(monkeypatch, tmp_path):
@@ -104,3 +108,53 @@ def test_auto_without_key_does_not_block_generation():
     project = ProjectCreate(name="Demo", web_policy="AUTO")
 
     assert not web_generation_block(project, {}).blocked
+
+
+def test_auto_without_key_offers_explicit_stale_choice(monkeypatch, tmp_path):
+    monkeypatch.setenv("PPTMAKER_DATA_DIR", str(tmp_path))
+    projects = ProjectRepository(tmp_path / "pptmaker.db")
+    project = projects.create(ProjectCreate(name="Fresh", web_policy="AUTO"))
+    confirmed = {
+        name: {"value": "已确认", "confidence": 1, "source": "user"}
+        for name in (
+            "purpose",
+            "scenario",
+            "target_slides",
+            "audience",
+            "priorities",
+            "style",
+        )
+    }
+    brief = RequirementBrief(project_id=project.id, **confirmed)
+    M2Repository(projects.path).save_brief(brief)
+    FreshnessService(
+        object(), ResearchRepository(projects.path)
+    ).plan(
+        project.id,
+        "AUTO",
+        RequirementExtraction(
+            brief=brief,
+            ai_freshness=FreshnessDecision(
+                requires_web=True,
+                reason="内容会变化",
+                freshness_level="HIGH",
+            ),
+        ),
+    )
+
+    app = AppTest.from_file("src/pptmaker/ui/app.py").run(timeout=10)
+
+    assert any(item.label == "仍然继续生成" for item in app.button)
+    assert any(item.label == "返回配置博查 Key" for item in app.button)
+    assert not any(item.label == "生成结构大纲" for item in app.button)
+
+    next(
+        item for item in app.button if item.label == "仍然继续生成"
+    ).click()
+    app.run(timeout=10)
+
+    assert any(item.label == "生成结构大纲" for item in app.button)
+    assert (
+        ResearchRepository(projects.path).get_latest_run(project.id).status
+        == "SKIPPED_NO_KEY"
+    )

@@ -7,6 +7,7 @@ from langgraph.types import Command
 
 from pptmaker.app_paths import database_path
 from pptmaker.m2.interview import (
+    RequirementExtraction,
     accept_unknown,
     extract_requirements_with_freshness,
     plan_next_question,
@@ -37,7 +38,11 @@ from pptmaker.blueprint.generator import InvalidBlueprint
 from pptmaker.research.bocha import BochaSearch
 from pptmaker.research.post_outline import PostOutlineResearch
 from pptmaker.research.repository import ResearchRepository
-from pptmaker.research.service import FreshnessService, SearchKeyRequired
+from pptmaker.research.service import (
+    FreshnessApprovalRequired,
+    FreshnessService,
+    SearchKeyRequired,
+)
 from pptmaker.workflow.foundation import sqlite_checkpointer
 
 
@@ -126,11 +131,13 @@ class WorkspaceServices:
         projects: ProjectRepository,
         repository: M2Repository,
         api_key: str,
+        bocha_key: str = "",
     ):
         self.project_id = project_id
         self.projects = projects
         self.repository = repository
         self.api_key = api_key
+        self.bocha_key = bocha_key
 
     def has_next_question(self, project_id: str) -> bool:
         return plan_next_question(self.repository.get_brief(project_id)) is not None
@@ -159,12 +166,37 @@ class WorkspaceServices:
         )
 
     def generate_outline(self, project_id: str) -> int:
+        research = ResearchRepository(self.projects.path)
+        run = research.get_latest_run(project_id)
+        if run and run.decision.requires_web:
+            if run.status in {"PLANNED", "FAILED"}:
+                if not self.bocha_key:
+                    raise FreshnessApprovalRequired(
+                        "需要先联网或确认继续生成非时效性大纲"
+                    )
+                extraction = RequirementExtraction(
+                    brief=self.repository.get_brief(project_id),
+                    ai_freshness=run.decision,
+                )
+                run = FreshnessService(BochaSearch(), research).run(
+                    project_id,
+                    run.policy,
+                    extraction,
+                    self.bocha_key,
+                    freshness=st.session_state.get(
+                        "search_freshness", "oneYear"
+                    ),
+                )
+                if run.status != "COMPLETED":
+                    raise FreshnessApprovalRequired(
+                        "联网核验失败，需要重试或确认降级"
+                    )
         generated = generate_outline(
             self.repository.get_brief(project_id),
             self.repository.list_chunks(project_id),
             _provider(),
             self.api_key,
-            facts=[],
+            facts=research.list_facts(project_id, active_only=True),
         )
         return self.repository.create_outline(generated).version
 
@@ -251,17 +283,35 @@ def _render_materials(project, projects, repository):
             current=repository.get_brief(project.id),
         )
         research = ResearchRepository(projects.path)
-        FreshnessService(BochaSearch(), research).plan(
-            project.id,
-            project.web_policy,
-            extraction,
-        )
+        freshness = FreshnessService(BochaSearch(), research)
+        if st.session_state.bocha_api_key:
+            freshness.run(
+                project.id,
+                project.web_policy,
+                extraction,
+                st.session_state.bocha_api_key,
+                freshness=st.session_state.get(
+                    "search_freshness", "oneYear"
+                ),
+            )
+        else:
+            freshness.plan(project.id, project.web_policy, extraction)
         brief = extraction.brief
         repository.save_brief(brief)
         services = WorkspaceServices(
-            project.id, projects, repository, st.session_state.api_key
+            project.id,
+            projects,
+            repository,
+            st.session_state.api_key,
+            st.session_state.bocha_api_key,
         )
-        result = _invoke_graph(project.id, services, initial_state(project.id))
+        try:
+            result = _invoke_graph(
+                project.id, services, initial_state(project.id)
+            )
+        except FreshnessApprovalRequired:
+            _set_project_state(projects, project.id, "WAITING_FOR_USER")
+            return
         _set_project_state(projects, project.id, result["business_state"])
         st.rerun()
 
@@ -272,13 +322,13 @@ def _render_research_status(project, database):
     if run is None:
         return
     if run.status == "PLANNED":
-        st.info(f"联网研究将在概览大纲批准后执行：{run.decision.reason}")
+        st.warning(f"生成概略大纲前需要联网核验：{run.decision.reason}")
         return
     if run.status == "NOT_REQUIRED":
         st.caption(f"未联网：{run.decision.reason}")
         return
     if run.status == "SKIPPED_NO_KEY":
-        st.warning("该主题具有时效性，但未配置搜索服务；相关内容待验证。")
+        st.warning("已由用户确认跳过联网；生成内容可能不具有时效性。")
         return
     if run.status == "FAILED":
         st.warning("联网核验失败，已保留离线流程；不会编造最新事实。")
@@ -345,9 +395,21 @@ def _render_interview(project, projects, repository):
             st.warning("请先在侧边栏输入 API Key。")
         else:
             services = WorkspaceServices(
-                project.id, projects, repository, st.session_state.api_key
+                project.id,
+                projects,
+                repository,
+                st.session_state.api_key,
+                st.session_state.bocha_api_key,
             )
-            result = _invoke_graph(project.id, services, Command(resume=answer))
+            try:
+                result = _invoke_graph(
+                    project.id, services, Command(resume=answer)
+                )
+            except FreshnessApprovalRequired:
+                _set_project_state(
+                    projects, project.id, "WAITING_FOR_USER"
+                )
+                return
             _set_project_state(projects, project.id, result["business_state"])
             st.rerun()
     if st.button(
@@ -358,13 +420,21 @@ def _render_interview(project, projects, repository):
             st.warning("请先在侧边栏输入 API Key。")
             return
         services = WorkspaceServices(
-            project.id, projects, repository, st.session_state.api_key
-        )
-        result = _invoke_graph(
             project.id,
-            services,
-            Command(resume={"unknown": ASSUMPTIONS[question.field]}),
+            projects,
+            repository,
+            st.session_state.api_key,
+            st.session_state.bocha_api_key,
         )
+        try:
+            result = _invoke_graph(
+                project.id,
+                services,
+                Command(resume={"unknown": ASSUMPTIONS[question.field]}),
+            )
+        except FreshnessApprovalRequired:
+            _set_project_state(projects, project.id, "WAITING_FOR_USER")
+            return
         _set_project_state(projects, project.id, result["business_state"])
         st.rerun()
 
@@ -373,12 +443,41 @@ def _render_outline(project, projects, repository):
     outlines = repository.list_outlines(project.id)
     brief = repository.get_brief(project.id)
     if not outlines and brief and plan_next_question(brief) is None:
+        run = ResearchRepository(projects.path).get_latest_run(project.id)
+        if (
+            run
+            and run.decision.requires_web
+            and run.status in {"PLANNED", "FAILED"}
+        ):
+            st.warning(
+                "该主题需要联网核验。当前没有可用的搜索结果，"
+                "继续生成的大纲和内容可能不具有时效性。"
+            )
+            if st.button(
+                "仍然继续生成",
+                key=f"m2_accept_stale_{project.id}",
+            ):
+                FreshnessService(
+                    BochaSearch(), ResearchRepository(projects.path)
+                ).accept_stale(run)
+                st.rerun()
+            if st.button(
+                "返回配置博查 Key",
+                key=f"m2_configure_search_{project.id}",
+            ):
+                st.session_state.show_search_settings = True
+                st.rerun()
+            return
         if st.button("生成结构大纲", key=f"m2_generate_{project.id}"):
             if not st.session_state.api_key:
                 st.warning("请先在侧边栏输入 API Key。")
                 return
             services = WorkspaceServices(
-                project.id, projects, repository, st.session_state.api_key
+                project.id,
+                projects,
+                repository,
+                st.session_state.api_key,
+                st.session_state.bocha_api_key,
             )
             result = _invoke_graph(
                 project.id, services, initial_state(project.id)
@@ -546,7 +645,11 @@ def _render_outline(project, projects, repository):
             type="primary",
         ):
             services = WorkspaceServices(
-                project.id, projects, repository, st.session_state.api_key
+                project.id,
+                projects,
+                repository,
+                st.session_state.api_key,
+                st.session_state.bocha_api_key,
             )
             result = _invoke_graph(
                 project.id, services, Command(resume="approve")
