@@ -116,3 +116,4 @@ def test_interrupted_generation_becomes_recoverable(
     assert repository.get_artifact(
         project.id, version
     ).status == "FAILED_RECOVERABLE"
+    assert any(item.label == "重新生成 PPT" for item in app.button)

@@ -35,6 +35,26 @@ They are not written to SQLite, project exports, files or logs.
 WPS, macOS/Linux PowerPoint automation and cloud deployment are not supported
 in the first version.
 
+## Run locally
+
+```bat
+conda activate AI
+streamlit run src/pptmaker/ui/app.py
+```
+
+The server binds to `127.0.0.1`; an external URL is intentionally unavailable.
+See [manual acceptance](docs/manual-acceptance.md) for the complete workflow,
+PowerPoint checks and online-provider checks.
+
+## Automated checks
+
+```bat
+conda activate AI
+set PYTHONIOENCODING=utf-8
+python -m pytest -q
+python scripts/check_p4_product_acceptance_gate.py
+```
+
 ## Image license modes
 
 - `STRICT`: public domain, CC0, CC BY and CC BY-SA candidates only.

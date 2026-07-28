@@ -20,6 +20,7 @@ from pptmaker.projects.portability import (
 from pptmaker.providers import PRESETS, OpenAICompatibleProvider, ProviderConfig
 from pptmaker.research.bocha import BochaSearch
 from pptmaker.ui.state import initialize_session_state
+from pptmaker.ui.journey import build_journey
 from pptmaker.ui.m2_workspace import render_m2_workspace
 from pptmaker.workflow import reconcile_interrupted_projects
 
@@ -180,6 +181,20 @@ def _project_workspace(repository: ProjectRepository) -> None:
         st.caption(
             f"业务状态：{project.business_state} · 执行状态：{project.execution_state}"
         )
+        journey = build_journey(project.id, repository.path)
+        st.caption(
+            " → ".join(
+                (
+                    f"✓ {stage.label}"
+                    if stage.status == "complete"
+                    else f"● {stage.label}"
+                    if stage.status == "current"
+                    else f"○ {stage.label}"
+                )
+                for stage in journey.stages
+            )
+        )
+        st.info(f"下一步：{journey.next_action}")
         if project.execution_state == "RUNNING":
             st.warning("任务运行时请勿刷新；刷新后需重新输入 API Key。")
 

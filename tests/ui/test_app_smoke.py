@@ -76,3 +76,15 @@ def test_duplicate_project_name_shows_warning(monkeypatch, tmp_path):
 
     assert not app.exception
     assert any("已存在" in item.value for item in app.warning)
+
+
+def test_new_project_shows_next_action(monkeypatch, tmp_path):
+    monkeypatch.setenv("PPTMAKER_DATA_DIR", str(tmp_path))
+    app = AppTest.from_file("src/pptmaker/ui/app.py").run(timeout=10)
+    next(item for item in app.text_input if item.label == "项目名称").set_value(
+        "Guided"
+    )
+    next(item for item in app.button if item.label == "创建项目").click()
+    app.run(timeout=10)
+
+    assert any("需求分析" in item.value for item in app.info)

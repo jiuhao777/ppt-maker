@@ -57,8 +57,14 @@ def render_m3_generation(
         "生成阶段不会再次调用模型。"
     )
 
+    existing = repository.get_artifact(project.id, blueprint.version)
+    button_label = (
+        "重新生成 PPT"
+        if existing and existing.status == "FAILED_RECOVERABLE"
+        else "生成 PPT"
+    )
     if st.button(
-        "生成 PPT",
+        button_label,
         key=f"m3_generate_{project.id}_{blueprint.version}",
         type="primary",
     ):
@@ -145,7 +151,7 @@ def render_m3_generation(
                     project_id=project.id,
                     blueprint_version=blueprint.version,
                     status="FAILED_RECOVERABLE",
-                    safe_error_type=type(exc).__name__,
+                    safe_error_type="generation_failed",
                     created_at=now,
                     updated_at=datetime.now(timezone.utc),
                 )

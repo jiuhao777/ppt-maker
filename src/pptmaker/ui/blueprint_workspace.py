@@ -19,6 +19,7 @@ from pptmaker.m3.design import plan_design
 from pptmaker.projects import ProjectRepository
 from pptmaker.providers import ProviderConfig, StructuredModel
 from pptmaker.research.repository import ResearchRepository
+from pptmaker.ui.state import safe_generation_message
 
 
 VISUAL_KINDS = [
@@ -111,10 +112,14 @@ def _render_asset_candidates(
                 f"{page.page_id}"
             ),
         ):
-            _curate_assets(
-                project, projects, blueprint, {page.page_id}
-            )
-            st.rerun()
+            try:
+                _curate_assets(
+                    project, projects, blueprint, {page.page_id}
+                )
+            except Exception as exc:
+                st.warning(safe_generation_message(exc))
+            else:
+                st.rerun()
         if st.button(
             "改为无图版式",
             key=(
@@ -201,22 +206,38 @@ def render_blueprint_workspace(
             if brief is None:
                 st.warning("请先完成需求分析。")
                 return
-            design = plan_design(
-                brief,
-                style,
-                _provider(),
-                st.session_state.api_key,
-            )
-            draft = generate_blueprint(
-                approved_outline,
-                brief,
-                active_facts,
-                design,
-                _provider(),
-                st.session_state.api_key,
-            )
-            created = repository.create(draft)
-            _curate_assets(project, projects, created)
+            try:
+                design = plan_design(
+                    brief,
+                    style,
+                    _provider(),
+                    st.session_state.api_key,
+                )
+                draft = generate_blueprint(
+                    approved_outline,
+                    brief,
+                    active_facts,
+                    design,
+                    _provider(),
+                    st.session_state.api_key,
+                )
+                created = repository.create(draft)
+            except Exception as exc:
+                st.error(safe_generation_message(exc))
+                return
+            try:
+                _curate_assets(project, projects, created)
+            except Exception as exc:
+                queue_blueprint_version(
+                    st.session_state,
+                    project.id,
+                    created.version,
+                )
+                st.warning(
+                    "详细大纲已保存，但素材搜索失败。"
+                    + safe_generation_message(exc)
+                )
+                return
             queue_blueprint_version(
                 st.session_state,
                 project.id,
