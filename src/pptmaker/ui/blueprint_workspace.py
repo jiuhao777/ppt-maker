@@ -15,7 +15,8 @@ from pptmaker.assets.web_images import (
     BochaWebImageProvider,
 )
 from pptmaker.blueprint.generator import generate_blueprint
-from pptmaker.blueprint.models import DeckBlueprint
+from pptmaker.blueprint.layout_planner import construction_summary
+from pptmaker.blueprint.models import AssetSlot, DeckBlueprint, LayoutRegion
 from pptmaker.blueprint.quality import review_blueprint
 from pptmaker.blueprint.repository import BlueprintRepository
 from pptmaker.m2.models import DeckOutline
@@ -46,7 +47,9 @@ STYLE_OPTIONS = [
 ]
 
 
-def _curate_assets(project, projects, blueprint, page_ids=None):
+def _curate_assets(
+    project, projects, blueprint, page_ids=None, slot_ids=None
+):
     providers = []
     if st.session_state.get("bocha_api_key"):
         providers.append(
@@ -80,6 +83,7 @@ def _curate_assets(project, projects, blueprint, page_ids=None):
         blueprint,
         project.asset_license_mode,
         page_ids=page_ids,
+        slot_ids=slot_ids,
     )
     for page_id, diagnostics in result.diagnostics.items():
         st.session_state[
@@ -98,76 +102,111 @@ def _render_asset_candidates(
     records = assets.list_for_blueprint(
         project.id, blueprint.version
     )
-    by_page = {}
+    by_slot = {}
     for item in records:
-        by_page.setdefault(item.page_id, []).append(item)
+        by_slot.setdefault((item.page_id, item.slot_id), []).append(item)
     errors = assets.list_errors(project.id, blueprint.version)
 
     for page in blueprint.pages:
-        if page.visual.kind not in {"photo", "illustration"}:
+        page_slots = page.asset_slots
+        if not page_slots and page.asset_search_query:
+            page_slots = [
+                AssetSlot(
+                    slot_id="hero",
+                    role="hero",
+                    subject=page.asset_search_query,
+                    search_query=page.asset_search_query,
+                    purpose="支撑页面核心结论",
+                    region=LayoutRegion(
+                        x=0.52, y=0.2, width=0.43, height=0.62
+                    ),
+                )
+            ]
+        if not page_slots:
             continue
-        st.markdown(f"#### 第 {page.order} 页候选图片")
-        if page.page_id in errors:
-            st.warning(errors[page.page_id])
-        candidates = by_page.get(page.page_id, [])
-        diagnostics = st.session_state.get(
-            f"asset_diagnostics_{project.id}_{blueprint.version}_{page.page_id}"
-        )
-        if diagnostics:
-            st.caption(
-                "搜索 {searched} · 下载失败 {download_failed} · "
-                "格式/尺寸拒绝 {validation_rejected} · 可用 {usable}".format(
-                    **diagnostics
+        st.markdown(f"#### 第 {page.order} 页图片计划")
+        for slot in page_slots:
+            result_key = f"{page.page_id}:{slot.slot_id}"
+            with st.container(border=True):
+                st.markdown(f"**{slot.subject}** · {slot.role}")
+                st.caption(
+                    f"{slot.purpose}｜搜索词：{slot.search_query}｜"
+                    f"x={slot.region.x:.0%}, y={slot.region.y:.0%}, "
+                    f"宽={slot.region.width:.0%}, 高={slot.region.height:.0%}"
                 )
-            )
-        if not candidates:
-            st.info("暂无通过安全验证的候选图片。")
-        for item in candidates:
-            if item.local_path:
-                st.image(item.local_path, width=320)
-            if item.status == "APPROVED":
-                st.success("已选择")
-            elif st.button(
-                "选择此图片",
-                key=(
-                    f"asset_select_{project.id}_{blueprint.version}_"
-                    f"{page.page_id}_{item.id}"
-                ),
-            ):
-                assets.approve(project.id, item.id)
-                blueprint_repository.select_asset(
-                    project.id,
-                    blueprint.version,
-                    page.page_id,
-                    item.id,
+                if result_key in errors:
+                    st.warning(errors[result_key])
+                diagnostics = st.session_state.get(
+                    f"asset_diagnostics_{project.id}_"
+                    f"{blueprint.version}_{result_key}"
                 )
-                st.rerun()
-        if st.button(
-            "重新搜索本页",
-            key=(
-                f"asset_retry_{project.id}_{blueprint.version}_"
-                f"{page.page_id}"
-            ),
-        ):
-            try:
-                _curate_assets(
-                    project, projects, blueprint, {page.page_id}
+                if diagnostics:
+                    st.caption(
+                        "搜索 {searched} · 下载失败 {download_failed} · "
+                        "校验拒绝 {validation_rejected} · 可用 {usable}".format(
+                            **diagnostics
+                        )
+                    )
+                candidates = by_slot.get(
+                    (page.page_id, slot.slot_id), []
                 )
-            except Exception as exc:
-                st.warning(safe_generation_message(exc))
-            else:
-                st.rerun()
-        if st.button(
-            "改为无图版式",
-            key=(
-                f"asset_none_{project.id}_{blueprint.version}_"
-                f"{page.page_id}"
-            ),
-        ):
-            blueprint_repository.set_page_no_image(
-                project.id, blueprint.version, page.page_id
-            )
-            st.rerun()
+                if not candidates:
+                    st.info("暂无通过安全验证的候选图片。")
+                for item in candidates:
+                    if item.local_path:
+                        st.image(item.local_path, width=320)
+                    if item.status == "APPROVED":
+                        st.success("已选择")
+                    elif st.button(
+                        "选择此图片",
+                        key=(
+                            f"asset_select_{project.id}_{blueprint.version}_"
+                            f"{page.page_id}_{slot.slot_id}_{item.id}"
+                        ),
+                    ):
+                        assets.approve(project.id, item.id)
+                        blueprint_repository.select_asset(
+                            project.id,
+                            blueprint.version,
+                            page.page_id,
+                            slot.slot_id,
+                            item.id,
+                        )
+                        st.rerun()
+                left, right = st.columns(2)
+                if left.button(
+                    "重新搜索",
+                    key=(
+                        f"asset_retry_{project.id}_{blueprint.version}_"
+                        f"{page.page_id}_{slot.slot_id}"
+                    ),
+                ):
+                    try:
+                        _curate_assets(
+                            project,
+                            projects,
+                            blueprint,
+                            {page.page_id},
+                            {(page.page_id, slot.slot_id)},
+                        )
+                    except Exception as exc:
+                        st.warning(safe_generation_message(exc))
+                    else:
+                        st.rerun()
+                if right.button(
+                    "使用降级布局",
+                    key=(
+                        f"asset_fallback_{project.id}_{blueprint.version}_"
+                        f"{page.page_id}_{slot.slot_id}"
+                    ),
+                ):
+                    blueprint_repository.set_slot_fallback(
+                        project.id,
+                        blueprint.version,
+                        page.page_id,
+                        slot.slot_id,
+                    )
+                    st.rerun()
 
 
 def queue_blueprint_version(
@@ -189,6 +228,36 @@ def apply_pending_blueprint_version(
 
 def blueprint_version_label(blueprint: DeckBlueprint) -> str:
     return f"v{blueprint.version} · {blueprint.status}"
+
+
+def blueprint_version_diff(
+    older: DeckBlueprint,
+    newer: DeckBlueprint,
+) -> list[str]:
+    changes = []
+    if len(older.pages) != len(newer.pages):
+        changes.append(f"页数：{len(older.pages)} → {len(newer.pages)}")
+    older_pages = {item.page_id: item for item in older.pages}
+    for page in newer.pages:
+        previous = older_pages.get(page.page_id)
+        if previous is None:
+            changes.append(f"新增第 {page.order} 页：{page.conclusion_title}")
+            continue
+        if previous.conclusion_title != page.conclusion_title:
+            changes.append(
+                f"第 {page.order} 页标题："
+                f"{previous.conclusion_title} → {page.conclusion_title}"
+            )
+        if previous.page_type != page.page_type:
+            changes.append(
+                f"第 {page.order} 页类型："
+                f"{previous.page_type} → {page.page_type}"
+            )
+        if previous.asset_slots != page.asset_slots:
+            changes.append(f"第 {page.order} 页图片计划已变化")
+        if previous.layout_elements != page.layout_elements:
+            changes.append(f"第 {page.order} 页布局已变化")
+    return changes
 
 
 def _provider() -> StructuredModel:
@@ -300,6 +369,15 @@ def render_blueprint_workspace(
         f"基于概略大纲 v{selected.outline_version} · "
         f"{len(selected.sections)} 章 · {len(selected.pages)} 页"
     )
+    latest = blueprints[-1]
+    if selected.version != latest.version:
+        with st.expander(f"与最新版本 v{latest.version} 对比"):
+            changes = blueprint_version_diff(selected, latest)
+            if changes:
+                for change in changes:
+                    st.markdown(f"- {change}")
+            else:
+                st.info("未发现页面结构差异。")
 
     with st.expander("全局 Deck Bible", expanded=True):
         st.json(selected.bible.model_dump(mode="json"))
@@ -339,6 +417,7 @@ def render_blueprint_workspace(
                 with st.expander(
                     f"第 {page.order} 页 · {page.conclusion_title}"
                 ):
+                    st.code(construction_summary(page), language=None)
                     title = st.text_input(
                         "结论式标题",
                         value=page.conclusion_title,
@@ -386,14 +465,102 @@ def render_blueprint_workspace(
                         default=page.fact_ids,
                         key=f"blueprint_facts_{selected.version}_{page.page_id}",
                     )
-                    asset_query = st.text_input(
-                        "候选素材搜索要求",
-                        value=page.asset_search_query,
-                        key=f"blueprint_asset_{selected.version}_{page.page_id}",
-                    )
+                    edited_slots = []
+                    for slot in page.asset_slots:
+                        st.markdown(f"**图片槽位：{slot.slot_id}**")
+                        subject = st.text_input(
+                            "图片内容",
+                            value=slot.subject,
+                            key=(
+                                f"slot_subject_{selected.version}_"
+                                f"{page.page_id}_{slot.slot_id}"
+                            ),
+                        )
+                        query = st.text_input(
+                            "搜索词",
+                            value=slot.search_query,
+                            key=(
+                                f"slot_query_{selected.version}_"
+                                f"{page.page_id}_{slot.slot_id}"
+                            ),
+                        )
+                        purpose = st.text_input(
+                            "图片作用",
+                            value=slot.purpose,
+                            key=(
+                                f"slot_purpose_{selected.version}_"
+                                f"{page.page_id}_{slot.slot_id}"
+                            ),
+                        )
+                        with st.expander(
+                            f"{slot.slot_id} 高级布局设置"
+                        ):
+                            columns = st.columns(4)
+                            x = columns[0].number_input(
+                                "x",
+                                0.0,
+                                1.0,
+                                float(slot.region.x),
+                                0.01,
+                                key=(
+                                    f"slot_x_{selected.version}_"
+                                    f"{page.page_id}_{slot.slot_id}"
+                                ),
+                            )
+                            y = columns[1].number_input(
+                                "y",
+                                0.0,
+                                1.0,
+                                float(slot.region.y),
+                                0.01,
+                                key=(
+                                    f"slot_y_{selected.version}_"
+                                    f"{page.page_id}_{slot.slot_id}"
+                                ),
+                            )
+                            width = columns[2].number_input(
+                                "宽",
+                                0.01,
+                                1.0,
+                                float(slot.region.width),
+                                0.01,
+                                key=(
+                                    f"slot_w_{selected.version}_"
+                                    f"{page.page_id}_{slot.slot_id}"
+                                ),
+                            )
+                            height = columns[3].number_input(
+                                "高",
+                                0.01,
+                                1.0,
+                                float(slot.region.height),
+                                0.01,
+                                key=(
+                                    f"slot_h_{selected.version}_"
+                                    f"{page.page_id}_{slot.slot_id}"
+                                ),
+                            )
+                        edited_slots.append(
+                            slot.model_copy(
+                                update={
+                                    "subject": subject,
+                                    "search_query": query,
+                                    "purpose": purpose,
+                                    "region": slot.region.model_copy(
+                                        update={
+                                            "x": x,
+                                            "y": y,
+                                            "width": width,
+                                            "height": height,
+                                        }
+                                    ),
+                                }
+                            )
+                        )
                     edited_pages.append(
-                        page.model_copy(
-                            update={
+                        page.__class__.model_validate(
+                            page.model_dump()
+                            | {
                                 "conclusion_title": title,
                                 "primary_message": message,
                                 "supporting_points": [
@@ -408,7 +575,10 @@ def render_blueprint_workspace(
                                 "previous_bridge": previous_bridge,
                                 "next_bridge": next_bridge,
                                 "fact_ids": fact_ids,
-                                "asset_search_query": asset_query,
+                                "asset_slots": [
+                                    item.model_dump()
+                                    for item in edited_slots
+                                ],
                             }
                         )
                     )

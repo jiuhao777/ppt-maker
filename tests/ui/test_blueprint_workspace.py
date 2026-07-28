@@ -13,11 +13,29 @@ from pptmaker.m2.repository import M2Repository
 from pptmaker.projects import ProjectCreate, ProjectRepository
 from pptmaker.ui.blueprint_workspace import (
     apply_pending_blueprint_version,
+    blueprint_version_diff,
     blueprint_version_label,
     queue_blueprint_version,
 )
 from tests.blueprint.factories import blueprint
 from tests.assets.test_models import record
+
+
+def test_blueprint_version_diff_reports_title_change():
+    older = blueprint(page_count=1)
+    newer = older.model_copy(
+        update={
+            "version": 2,
+            "pages": [
+                older.pages[0].model_copy(
+                    update={"conclusion_title": "新的结论"}
+                )
+            ],
+        }
+    )
+    assert any(
+        "标题" in item for item in blueprint_version_diff(older, newer)
+    )
 
 
 def _approved_outline_project(monkeypatch, tmp_path):

@@ -53,6 +53,7 @@ class AssetCurator:
         license_mode: LicenseMode,
         *,
         page_ids: set[str] | None = None,
+        slot_ids: set[tuple[str, str]] | None = None,
     ) -> CurationResult:
         if blueprint.project_id != project_id:
             raise ValueError("blueprint project does not match")
@@ -69,6 +70,11 @@ class AssetCurator:
             if not targets and page.asset_search_query.strip():
                 targets = [("hero", page.asset_search_query)]
             for slot_id, search_query in targets:
+                if (
+                    slot_ids is not None
+                    and (page.page_id, slot_id) not in slot_ids
+                ):
+                    continue
                 result_key = (
                     f"{page.page_id}:{slot_id}"
                     if page.asset_slots
