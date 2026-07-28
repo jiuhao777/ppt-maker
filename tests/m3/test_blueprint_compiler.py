@@ -3,7 +3,13 @@ from datetime import datetime, timezone
 import pytest
 
 from pptmaker.assets.models import AssetRecord
-from pptmaker.blueprint.models import ChartData, ChartSeries
+from pptmaker.blueprint.layout_planner import plan_page_layout
+from pptmaker.blueprint.models import (
+    AssetSlot,
+    ChartData,
+    ChartSeries,
+    LayoutRegion,
+)
 from pptmaker.m3.blueprint_compiler import BlueprintCompileError, compile_blueprint
 from pptmaker.m3.design import PRESETS
 from pptmaker.research.contracts import FactRecord
@@ -165,3 +171,60 @@ def test_data_chart_page_requires_structured_chart_data():
             [],
             design(),
         )
+
+
+def _multi_image_blueprint(tmp_path, count, page_type="image_text"):
+    item = approved_blueprint()
+    slots = []
+    assets = []
+    for index in range(count):
+        slot_id = f"image-{index}"
+        asset_id = f"asset-{index}"
+        image_path = tmp_path / f"{asset_id}.jpg"
+        image_path.write_bytes(b"verified")
+        slots.append(
+            AssetSlot(
+                slot_id=slot_id,
+                role="photo",
+                subject=slot_id,
+                search_query=slot_id,
+                purpose="支撑结论",
+                region=LayoutRegion(
+                    x=0.1, y=0.2, width=0.2, height=0.2
+                ),
+                selected_asset_id=asset_id,
+            )
+        )
+        assets.append(
+            asset(
+                image_path,
+                id=asset_id,
+                slot_id=slot_id,
+            )
+        )
+    page = item.pages[0].model_copy(
+        update={
+            "page_type": page_type,
+            "asset_slots": slots,
+            "asset_ids": [],
+        }
+    )
+    page = plan_page_layout(page)
+    return item.model_copy(update={"pages": [page]}), assets
+
+
+@pytest.mark.parametrize("count", [1, 2, 3, 4])
+def test_compiler_emits_every_selected_slot(count, tmp_path):
+    item, assets = _multi_image_blueprint(tmp_path, count)
+    spec = compile_blueprint(item, [fact()], assets, design())[0]
+    images = [element for element in spec.elements if element.type == "image"]
+    assert len(images) == count
+
+
+@pytest.mark.parametrize("page_type", ["cover", "section", "quote", "ending"])
+def test_special_page_with_image_compiles(page_type, tmp_path):
+    item, assets = _multi_image_blueprint(
+        tmp_path, 1, page_type=page_type
+    )
+    spec = compile_blueprint(item, [fact()], assets, design())[0]
+    assert any(element.type == "image" for element in spec.elements)

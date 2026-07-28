@@ -64,3 +64,10 @@ def test_construction_summary_contains_required_sections():
     assert "布局" in summary
     assert "演讲备注" in summary
     assert "逻辑衔接" in summary
+
+
+def test_chart_plan_contains_executable_chart_region():
+    source = page("p1", 1)
+    source.visual = source.visual.model_copy(update={"kind": "chart"})
+    planned = plan_page_layout(source)
+    assert any(item.kind == "chart" for item in planned.layout_elements)

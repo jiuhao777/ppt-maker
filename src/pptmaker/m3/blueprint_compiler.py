@@ -95,7 +95,28 @@ def compile_blueprint(
         if set(page.fact_ids) - set(fact_map):
             raise BlueprintCompileError("page references an invalid fact")
         page_assets = []
+        selected_slots = [
+            slot for slot in page.asset_slots if slot.selected_asset_id
+        ]
+        for slot in selected_slots:
+            asset_id = slot.selected_asset_id
+            asset = asset_map.get(asset_id)
+            if (
+                asset is None
+                or asset.page_id != page.page_id
+                or asset.slot_id != slot.slot_id
+                or not asset.local_path
+                or not Path(asset.local_path).is_file()
+            ):
+                if slot.required:
+                    raise BlueprintCompileError(
+                        "page references an invalid required asset"
+                    )
+                continue
+            page_assets.append(asset)
         for asset_id in page.asset_ids:
+            if asset_id in {item.id for item in page_assets}:
+                continue
             asset = asset_map.get(asset_id)
             if (
                 asset is None
@@ -110,6 +131,7 @@ def compile_blueprint(
         if (
             page.visual.kind in {"photo", "illustration"}
             and not page_assets
+            and not page.asset_slots
         ):
             raise BlueprintCompileError(
                 "image page requires an approved local asset"

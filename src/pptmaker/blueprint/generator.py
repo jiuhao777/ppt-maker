@@ -92,6 +92,13 @@ def generate_blueprint(
                 "口头解释写入 speaker_notes。"
                 "只允许引用 verified_facts 中的事实 ID。"
                 "根据页面目的自动选择视觉类型，不强制使用图片。"
+                "每页规划零到四个 asset_slots；每个槽位必须写清"
+                "具体图片内容、用途、中文搜索词、角色、是否必需和降级方式。"
+                "需要多个品牌标志、案例图或截图时必须拆成独立槽位，"
+                "不能合并成模糊的一张配图。"
+                "页面正文只保留核心信息，细节写入 detail 或 speaker_notes；"
+                "previous_bridge 和 next_bridge 必须说明前后页逻辑。"
+                "不要生成 layout_elements 坐标，坐标由系统确定性规划。"
             ),
             json.dumps(
                 {

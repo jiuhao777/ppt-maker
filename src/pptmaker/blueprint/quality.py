@@ -56,9 +56,7 @@ def review_blueprint(
         if set(slot_ids) - image_refs:
             defects.append("unrepresented_asset_slot")
         if any(
-            item.required
-            and not item.selected_asset_id
-            and item.fallback == "no_image"
+            item.required and not item.selected_asset_id
             for item in page.asset_slots
         ):
             defects.append("required_asset_missing")

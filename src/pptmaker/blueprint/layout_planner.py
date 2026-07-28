@@ -78,6 +78,19 @@ def plan_page_layout(page: BlueprintPage) -> BlueprintPage:
             content_ref="primary_message",
         ),
     ]
+    if page.visual.kind == "chart" and not updated_slots:
+        elements[1] = elements[1].model_copy(
+            update={"region": _region(0.05, 0.2, 0.28, 0.62)}
+        )
+        elements.append(
+            LayoutElementPlan(
+                element_id="chart",
+                kind="chart",
+                region=_region(0.38, 0.2, 0.57, 0.62),
+                z_index=1,
+                content_ref="chart_data",
+            )
+        )
     elements.extend(
         LayoutElementPlan(
             element_id=f"image-{slot.slot_id}",

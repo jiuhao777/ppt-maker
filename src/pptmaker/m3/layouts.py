@@ -430,6 +430,83 @@ def _interaction(page, design):
     ]
 
 
+def _planned_elements(page, bible, design, assets):
+    asset_by_slot = {item.slot_id: item for item in assets}
+    colors = {
+        "primary": design.palette.primary,
+        "accent": design.palette.accent,
+        "text_primary": design.palette.text_primary,
+        "text_secondary": design.palette.text_secondary,
+        "background": design.palette.background,
+    }
+    result = []
+    for planned in sorted(page.layout_elements, key=lambda item: item.z_index):
+        region = planned.region
+        x = region.x * CANVAS_W
+        y = region.y * CANVAS_H
+        width = region.width * CANVAS_W
+        height = region.height * CANVAS_H
+        if planned.kind == "image":
+            asset = asset_by_slot.get(planned.content_ref)
+            if asset and asset.local_path:
+                result.append(
+                    ImageElement(
+                        path=asset.local_path,
+                        x=x,
+                        y=y,
+                        width=width,
+                        height=height,
+                    )
+                )
+            continue
+        if planned.kind == "chart":
+            data = page.visual.chart_data
+            if data:
+                result.append(
+                    ChartElement(
+                        chart_type=page.visual.chart_type or "column",
+                        categories=data.categories,
+                        series={
+                            item.name: [
+                                float(value) for value in item.values
+                            ]
+                            for item in data.series
+                        },
+                        x=x,
+                        y=y,
+                        width=width,
+                        height=height,
+                    )
+                )
+            continue
+        values = {
+            "conclusion_title": page.conclusion_title,
+            "primary_message": page.primary_message,
+            "detail": page.detail,
+            "footer": bible.footer,
+            "order": str(page.order),
+        }
+        value = values.get(planned.content_ref, "")
+        if not value:
+            continue
+        result.append(
+            _text(
+                value,
+                x,
+                y,
+                width,
+                height,
+                planned.font_size or design.fonts.body_size,
+                design,
+                bold=planned.kind in {"title", "subtitle"},
+                color=colors.get(
+                    planned.color_token, design.palette.text_primary
+                ),
+            )
+        )
+    return result
+
+
 def layout_page(
     page: BlueprintPage,
     bible: DeckBible,
@@ -437,6 +514,22 @@ def layout_page(
     facts: list[FactRecord],
     assets: list[AssetRecord],
 ) -> SlideSpec:
+    if page.layout_elements:
+        sources = [
+            f"{item.source_title} · {item.source_url}" for item in facts
+        ]
+        return SlideSpec(
+            page_id=page.page_id,
+            order=page.order,
+            page_type=page.page_type,
+            background_color=design.palette.background,
+            elements=_planned_elements(page, bible, design, assets),
+            speaker_notes=page.speaker_notes,
+            source_references=sources,
+            transition=(
+                "fade" if bible.animation_level == "simple" else "none"
+            ),
+        )
     effective_type = page.page_type
     if effective_type == "image_text" and page.visual.kind not in {
         "photo", "illustration"
