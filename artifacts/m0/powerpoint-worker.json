@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "generated_at": "2026-07-28T12:41:41Z",
+  "source_fingerprint": "e1599d2e18ec80a2d42ab82ec49e35b829c1adb6589e4098e71219ab4c97a856",
+  "environment": {
+    "python": "3.10.20",
+    "platform": "win32",
+    "ppt-maker": "0.1.0",
+    "pydantic": "2.13.4",
+    "python-pptx": "1.0.2",
+    "pywin32": "311",
+    "psutil": "7.1.3"
+  },
+  "name": "powerpoint-worker",
+  "status": "pass",
+  "metrics": {
+    "rendered_slides": 2,
+    "normal_elapsed_seconds": 5.849352599994745,
+    "normal_process_stopped": true,
+    "timeout_elapsed_seconds": 5.105822899990017,
+    "timeout_orphaned": false
+  },
+  "limitations": [
+    "Formal M0 support requires no pre-existing PowerPoint instance.",
+    "Protected View recovery and final PPTX atomic replacement are deferred."
+  ],
+  "evidence": [
+    "C:\\Users\\DELL\\Desktop\\ppt-maker\\artifacts\\m0\\powerpoint-probe\\1785242486971097700\\normal\\幻灯片1.PNG",
+    "C:\\Users\\DELL\\Desktop\\ppt-maker\\artifacts\\m0\\powerpoint-probe\\1785242486971097700\\normal\\幻灯片2.PNG"
+  ],
+  "details": {
+    "normal_response": {
+      "status": "success",
+      "owned_pid": 12392,
+      "slide_images": [
+        "C:\\Users\\DELL\\Desktop\\ppt-maker\\artifacts\\m0\\powerpoint-probe\\1785242486971097700\\normal\\幻灯片1.PNG",
+        "C:\\Users\\DELL\\Desktop\\ppt-maker\\artifacts\\m0\\powerpoint-probe\\1785242486971097700\\normal\\幻灯片2.PNG"
+      ],
+      "elapsed_seconds": 5.849352599994745,
+      "error": null,
+      "details": {}
+    },
+    "timeout_response": {
+      "status": "failed",
+      "owned_pid": null,
+      "slide_images": [],
+      "elapsed_seconds": 5.105822899990017,
+      "error": "worker hard timeout",
+      "details": {
+        "cleanup_attempted": true
+      }
+    },
+    "timeout_identity": {
+      "pid": 18524,
+      "run_id": "timeout",
+      "process_created_at": 1785242497.171318,
+      "heartbeat": 1785242501.2006502
+    },
+    "office_environment": {
+      "office_version": "16.0.15128.20246",
+      "office_bitness": "x64",
+      "office_products": "OneNoteFreeRetail,HomeStudent2021Retail",
+      "macro_vba_warnings": null
+    }
+  }
+}

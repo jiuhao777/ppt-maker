@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "cases": 4,
+  "key_field_coverage": 1.0,
+  "invalid_question_rate": 0.0,
+  "mean_interview_turns": 2.25,
+  "max_interview_turns": 5,
+  "task_type_variation": 1.0,
+  "research_traceability": 1.0,
+  "research_deduplication": 1.0,
+  "rework_scope_accuracy": 1.0,
+  "version_accuracy": 1.0,
+  "version_auto_selection": 1.0,
+  "freshness_route_accuracy": 1.0,
+  "policy_override_accuracy": 1.0,
+  "fact_traceability": 1.0,
+  "unsafe_content_rejection": 1.0,
+  "approval_violations": 0,
+  "secret_leaks": 0
+}

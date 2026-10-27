@@ -1,5 +1,10 @@
 # PPT Maker
 
+> **归档说明：本项目已停止开发，是一个失败项目的完整过程记录。**
+> 生成质量未达到可用标准，选题本身也被否定。代码可以运行，但不保证产出可用的演示文稿。
+> 终止原因、最终状态、未入库的大文件（`models/` 共 12.26 GB 本地模型权重）及其重新下载方式，
+> 全部记录在 **[docs/ARCHIVE.md](docs/ARCHIVE.md)**。逐日开发过程见 [`ppt-maker.txt`](ppt-maker.txt)。
+
 Local-first AI presentation agent for Windows 11 and Microsoft PowerPoint.
 
 ## Current workflow

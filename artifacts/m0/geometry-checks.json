@@ -1,0 +1,30 @@
+{
+  "schema_version": 2,
+  "generated_at": "2026-07-28T12:41:26Z",
+  "source_fingerprint": "55113924f0b51d2f3751d54cef2166f80d5ad0c2bf391540d3c4138438340c83",
+  "environment": {
+    "python": "3.10.20",
+    "platform": "win32",
+    "ppt-maker": "0.1.0",
+    "pydantic": "2.13.4",
+    "python-pptx": "1.0.2",
+    "pywin32": "311",
+    "psutil": "7.1.3"
+  },
+  "name": "geometry-checks",
+  "status": "pass",
+  "metrics": {
+    "checks": 4,
+    "passed": 4
+  },
+  "limitations": [],
+  "evidence": [],
+  "details": {
+    "checks": {
+      "right_overflow": true,
+      "half_overlap": true,
+      "touching_not_overlap": true,
+      "contained_overlap": true
+    }
+  }
+}

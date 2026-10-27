@@ -1,0 +1,25 @@
+{
+  "status": "pass",
+  "capabilities": {
+    "vision": {
+      "value": "unknown",
+      "source": "unknown"
+    },
+    "max_context": {
+      "value": "unknown",
+      "source": "unknown"
+    },
+    "basic_completion": {
+      "value": true,
+      "source": "probed"
+    },
+    "structured_output": {
+      "value": true,
+      "source": "probed"
+    },
+    "tools": {
+      "value": true,
+      "source": "probed"
+    }
+  }
+}

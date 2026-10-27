@@ -1,0 +1,30 @@
+{
+  "schema_version": 2,
+  "generated_at": "2026-07-28T12:41:26Z",
+  "source_fingerprint": "44651b07d3024e5fd748d17c68a383d2dc4c7018bbc4667046e5e1a7c287c506",
+  "environment": {
+    "python": "3.10.20",
+    "platform": "win32",
+    "ppt-maker": "0.1.0",
+    "pydantic": "2.13.4",
+    "python-pptx": "1.0.2",
+    "pywin32": "311",
+    "psutil": "7.1.3"
+  },
+  "name": "parser-core",
+  "status": "pass",
+  "metrics": {
+    "required_checks": 3,
+    "passed_checks": 3,
+    "elapsed_seconds": 0.02178680000361055
+  },
+  "limitations": [],
+  "evidence": [],
+  "details": {
+    "checks": {
+      "markdown_text": true,
+      "pptx_text": true,
+      "pptx_location": true
+    }
+  }
+}

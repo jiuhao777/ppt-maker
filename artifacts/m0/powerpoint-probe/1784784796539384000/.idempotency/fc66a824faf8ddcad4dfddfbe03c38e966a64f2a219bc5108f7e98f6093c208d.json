@@ -1,0 +1,16 @@
+{
+  "fingerprint": "e0e9734ff15cff13a47dd92da070c3645fdd496b3c082f011c84ed0a5dd257ab",
+  "state": "completed",
+  "updated_at": "2026-07-23T05:33:22.748138Z",
+  "response": {
+    "status": "success",
+    "owned_pid": 20496,
+    "slide_images": [
+      "C:\\Users\\DELL\\Desktop\\ppt-maker\\artifacts\\m0\\powerpoint-probe\\1784784796539384000\\normal\\幻灯片1.PNG",
+      "C:\\Users\\DELL\\Desktop\\ppt-maker\\artifacts\\m0\\powerpoint-probe\\1784784796539384000\\normal\\幻灯片2.PNG"
+    ],
+    "elapsed_seconds": 2.842824199993629,
+    "error": null,
+    "details": {}
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "candidate": "Qwen3-VL-4B-Instruct",
+  "path_exists": true,
+  "weight_bytes": 8875719344,
+  "vram_budget_bytes": 6815744000,
+  "quantization_runtime_available": false,
+  "load_attempted": false,
+  "admitted": false,
+  "reasons": [
+    "BF16 weights exceed the 6.5 GiB safety budget and the approved 4-bit runtime is unavailable.",
+    "Only five synthetic harness cases exist; admission requires at least 20 real PowerPoint-rendered pages."
+  ]
+}

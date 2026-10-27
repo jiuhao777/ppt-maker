@@ -1,7 +1,10 @@
 # Local models and user data
 /models/
 /projects/
-artifacts/
+# artifacts/ 不在整体排除范围内：M0–P4 的评测证据在归档时纳入版本控制，
+# 仅排除运行时产物（SQLite 库与日志）。模型权重见 docs/ARCHIVE.md。
+artifacts/**/*.db
+artifacts/**/*.log
 !docs/evidence/
 !docs/evidence/**
 
@@ -30,3 +33,14 @@ dist/
 build/
 .tmp/
 .superpowers/
+
+# 归档例外：保留 artifacts 下的 Office 样本作为评测证据
+!artifacts/**/*.pptx
+!artifacts/**/*.docx
+!artifacts/**/*.pdf
+# 归档时无法读取的 pytest 临时目录（权限受限）
+artifacts/pytest-*/
+artifacts/m0/pytest-office-*/
+
+# 本地部署密钥，绝不入库
+.deploy/

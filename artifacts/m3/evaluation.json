@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "cases": 1,
+  "layouts_exercised": [
+    "big_number",
+    "bullets",
+    "comparison",
+    "quote",
+    "table",
+    "text",
+    "two_column"
+  ],
+  "page_types_exercised": [
+    "content",
+    "contents",
+    "cover",
+    "ending",
+    "section"
+  ],
+  "crashes": [],
+  "slide_count_match": true,
+  "out_of_bounds_rate": 0.0,
+  "severe_overlap_rate": 0.0,
+  "text_editable": true,
+  "secret_leaks": 0
+}
